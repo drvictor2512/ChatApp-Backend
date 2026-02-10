@@ -4,8 +4,9 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     name: { type: String, required: true },
     dateOfBirth: { type: Date },
+    gender: { type: String, enum: ['Nam', 'Nữ'] },
     avatarUrl: { type: String },
-    avatarId: { type: String },
+    bannerUrl: { type: String },
     bio: { type: String },
     token: { type: String },
     verified: { type: Boolean, default: false }

@@ -10,7 +10,7 @@ import { generateOTP } from "../util/generateOTP.js";
 // Đăng ký
 export const signUp = async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, gender, dateOfBirth } = req.body;
         // Validate dữ liệu đầu vào
         if (!email || !password || !name) {
             throw new Error("Thiếu thông tin bắt buộc");
@@ -26,8 +26,21 @@ export const signUp = async (req, res) => {
         }
         // Băm mật khẩu
         const hashedPassword = await hashData(password);
+        // Kiểm tra giới tính hợp lệ
+        const allowedGenders = ['Nam', 'Nữ']
+        if (typeof gender !== 'undefined' && !allowedGenders.includes(gender)) {
+            throw new Error('Giới tính không hợp lệ')
+        }
+
+        // Kiểm tra và đặt ngày sinh hợp lệ
+        let dob = undefined
+        if (dateOfBirth) {
+            const d = new Date(dateOfBirth)
+            if (Number.isNaN(d.getTime())) throw new Error('Ngày sinh không hợp lệ')
+            dob = d
+        }
         // Tạo người dùng mới
-        const newUser = new User({ email, password: hashedPassword, name });
+        const newUser = new User({ email, password: hashedPassword, name, gender, ...(dob ? { dateOfBirth: dob } : {}) });
         await newUser.save();
         res.status(201).json({ message: "Đăng ký thành công" });
     } catch (error) {
