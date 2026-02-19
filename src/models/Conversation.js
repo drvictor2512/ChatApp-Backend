@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const participantSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     joinedAt: { type: Date, default: Date.now },
+    role: { type: String, enum: ['Trưởng nhóm', 'Phó nhóm', 'Thành viên'], default: 'Thành viên' },
 }, { _id: false })
 const lastMessageSub = new mongoose.Schema({
     content: { type: String },
@@ -12,8 +13,7 @@ const lastMessageSub = new mongoose.Schema({
 
 const conversationSchema = new mongoose.Schema({
     participants: [participantSchema],
-    type: { type: String, enum: ['PRIVATE', 'GROUP'], default: 'PRIVATE' },
-    seenByUserIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    type: { type: String, enum: ['DIRECT', 'GROUP'], default: 'DIRECT' },
     groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group' },
     lastMessageAt: { type: Date },
     lastMessage: lastMessageSub,

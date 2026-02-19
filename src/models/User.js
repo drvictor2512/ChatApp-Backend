@@ -8,8 +8,10 @@ const userSchema = new mongoose.Schema({
     avatarUrl: { type: String },
     bannerUrl: { type: String },
     bio: { type: String },
+    lastSeen: { type: Date },
     token: { type: String },
-    verified: { type: Boolean, default: false }
+    verified: { type: Boolean, default: false },
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 const User = mongoose.model('User', userSchema);
 export default User

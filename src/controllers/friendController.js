@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import Friend from './../models/Friend.js';
 import FriendRequest from './../models/FriendRequest.js';
+import { getIo } from '../libs/socket.js'
 
 const getTokenFromHeader = (req) => {
     const authHeader = req.headers.authorization || ''
@@ -49,7 +50,15 @@ export const sendFriendRequest = async (req, res) => {
 
         // Tạo yêu cầu kết bạn mới
         const request = await FriendRequest.create({ fromUserId: from, toUserId: to, message });
-        res.status(200).json({ message: 'Đã gửi yêu cầu kết bạn', request });
+        const populatedRequest = await FriendRequest.findById(request._id)
+            .populate('fromUserId', '_id name avatarUrl email')
+            .populate('toUserId', '_id name avatarUrl email')
+            .lean()
+        try {
+            const io = getIo()
+            if (io) io.to(`user:${to}`).emit('friend_request', { request: populatedRequest })
+        } catch (e) { }
+        res.status(200).json({ message: 'Đã gửi yêu cầu kết bạn', request: populatedRequest });
     } catch (error) {
         console.error('Lỗi khi thêm bạn:', error);
         res.status(500).json({ message: 'Lỗi máy chủ khi thêm bạn' });
@@ -81,6 +90,14 @@ export const acceptFriendRequest = async (req, res) => {
         await FriendRequest.findByIdAndDelete(requestId);
         // Trả về thông tin bạn bè mới
         const from = await User.findById(request.fromUserId).select('_id email name avatarUrl').lean();
+        const toUser = await User.findById(request.toUserId).select('_id email name avatarUrl').lean();
+        try {
+            const io = getIo()
+            if (io) {
+                io.to(`user:${request.fromUserId}`).emit('friend_accepted', { friend: toUser })
+                io.to(`user:${request.toUserId}`).emit('friend_accepted', { friend: from })
+            }
+        } catch (e) { }
         res.status(200).json({
             message: 'Đã chấp nhận yêu cầu kết bạn', newFriend: {
                 _id: from?._id, email: from?.email, name: from?.name, avatarUrl: from?.avatarUrl
@@ -107,7 +124,12 @@ export const declineFriendRequest = async (req, res) => {
             return res.status(403).json({ message: 'Bạn không có quyền từ chối yêu cầu kết bạn này' });
         }
         // Xóa yêu cầu kết bạn
+        const senderId = request.fromUserId
         await FriendRequest.findByIdAndDelete(requestId);
+        try {
+            const io = getIo()
+            if (io) io.to(`user:${senderId}`).emit('friend_declined', { requestId })
+        } catch (e) { }
         res.status(200).json({ message: 'Đã từ chối yêu cầu kết bạn' });
     } catch (error) {
         console.error('Lỗi khi từ chối kết bạn:', error);
@@ -176,7 +198,10 @@ export const unfriend = async (req, res) => {
         if (!deleted) {
             return res.status(404).json({ message: 'Bạn không phải là bạn của người này' });
         }
-
+        try {
+            const io = getIo()
+            if (io) io.to(`user:${otherUserId}`).emit('unfriended', { userId: userId.toString() })
+        } catch (e) { }
         res.status(200).json({ message: 'Đã huỷ kết bạn' });
     } catch (error) {
         console.error('Lỗi khi huỷ bạn:', error);

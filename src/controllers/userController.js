@@ -1,5 +1,18 @@
 import User from '../models/User.js'
 import { uploadFile } from '../util/fileService.js'
+import { getIo } from '../libs/socket.js'
+
+export const searchUserByEmail = async (req, res) => {
+    try {
+        const { email } = req.query
+        if (!email) return res.status(400).json({ message: 'Email is required' })
+        const user = await User.findOne({ email }).select('_id email name avatarUrl').lean()
+        if (!user) return res.status(404).json({ message: 'User not found' })
+        res.status(200).json({ user })
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+}
 
 const getTokenFromHeader = (req) => {
     const authHeader = req.headers.authorization || ''
@@ -115,4 +128,67 @@ export const getProfile = async (req, res) => {
     }
 }
 
-export default { updateProfile, uploadAvatar, getProfile }
+export const getUserById = async (req, res) => {
+    try {
+        const { id } = req.params
+        if (!id) return res.status(400).json({ message: 'Id is required' })
+        const user = await User.findById(id).select('-password').lean()
+        if (!user) return res.status(404).json({ message: 'User not found' })
+        res.status(200).json({ user })
+    } catch (error) {
+        res.status(400).json({ message: error.message })
+    }
+}
+
+export const blockUser = async (req, res) => {
+    try {
+        const token = getTokenFromHeader(req)
+        if (!token) return res.status(401).json({ message: 'Unauthorized' })
+        const user = await User.findOne({ token })
+        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        const { targetId } = req.body
+        if (!targetId) return res.status(400).json({ message: 'targetId is required' })
+        if (String(user._id) === String(targetId)) return res.status(400).json({ message: 'Không thể tự chặn bản thân' })
+        if (!user.blockedUsers.map(String).includes(String(targetId))) {
+            user.blockedUsers.push(targetId)
+            await user.save()
+        }
+        // Notify target in real-time
+        getIo()?.to(`user:${targetId}`).emit('you_were_blocked', { blockerId: String(user._id) })
+        res.status(200).json({ message: 'Đã chặn người dùng' })
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+}
+
+export const unblockUser = async (req, res) => {
+    try {
+        const token = getTokenFromHeader(req)
+        if (!token) return res.status(401).json({ message: 'Unauthorized' })
+        const user = await User.findOne({ token })
+        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        const { targetId } = req.body
+        if (!targetId) return res.status(400).json({ message: 'targetId is required' })
+        user.blockedUsers = user.blockedUsers.filter(id => String(id) !== String(targetId))
+        await user.save()
+        // Notify target in real-time
+        getIo()?.to(`user:${targetId}`).emit('you_were_unblocked', { unblockerId: String(user._id) })
+        res.status(200).json({ message: 'Đã bỏ chặn người dùng' })
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+}
+
+export const getBlockedUsers = async (req, res) => {
+    try {
+        const token = getTokenFromHeader(req)
+        if (!token) return res.status(401).json({ message: 'Unauthorized' })
+        const user = await User.findOne({ token }).populate('blockedUsers', '_id name avatarUrl email').lean()
+        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        res.status(200).json({ blockedUsers: user.blockedUsers || [] })
+    } catch (error) {
+        res.status(500).json({ message: error.message })
+    }
+}
+
+export default { updateProfile, uploadAvatar, getProfile, searchUserByEmail, getUserById, blockUser, unblockUser, getBlockedUsers }
