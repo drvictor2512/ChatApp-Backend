@@ -1,5 +1,5 @@
 import Conversation from '../models/Conversation.js';
-import User from '../models/User.js';
+import { getUserByToken } from '../libs/verifyToken.js';
 
 const getTokenFromHeader = (req) => {
     const authHeader = req.headers.authorization || ''
@@ -11,8 +11,12 @@ export default async function checkGroupMember(req, res, next) {
     try {
         const token = getTokenFromHeader(req);
         if (!token) return res.status(401).json({ message: 'Unauthorized' });
-        const user = await User.findOne({ token });
-        if (!user) return res.status(401).json({ message: 'Unauthorized' });
+        let user;
+        try {
+            user = await getUserByToken(token);
+        } catch (e) {
+            return res.status(401).json({ message: e.message });
+        }
 
         const conversationId = req.body?.conversationId || req.params?.conversationId
         if (!conversationId) return res.status(400).json({ message: 'conversationId is required' });

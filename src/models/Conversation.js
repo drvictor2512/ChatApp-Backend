@@ -18,6 +18,7 @@ const conversationSchema = new mongoose.Schema({
     lastMessageAt: { type: Date },
     lastMessage: lastMessageSub,
     unreadCounts: { type: Map, of: Number },
+    isAI: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Tạo index để tối ưu truy vấn cuộc trò chuyện theo người tham gia và thời gian tin nhắn cuối cùng

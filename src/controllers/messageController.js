@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { getUserByToken } from '../libs/verifyToken.js';
 import Conversation from './../models/Conversation.js';
 import Message from './../models/Message.js';
 import { updateConversationAfterCreateMessage } from './../util/messageHelper.js';
@@ -14,8 +15,8 @@ export const sendDirectMessage = async (req, res) => {
         const { recipientId, content, conversationId } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const senderId = user._id;
 
         let conversation;
@@ -86,8 +87,8 @@ export const recallMessage = async (req, res) => {
         const { messageId } = req.params
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const message = await Message.findById(messageId)
         if (!message) return res.status(404).json({ message: 'Tin nhắn không tồn tại' })
@@ -116,8 +117,8 @@ export const sendGroupMessage = async (req, res) => {
         const { content, conversationId } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const senderId = user._id;
         const conversation = req.conversation;
         if (!content && !req.file) {

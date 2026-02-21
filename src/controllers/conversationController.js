@@ -1,4 +1,5 @@
 import Conversation from "../models/Conversation.js";
+import { getUserByToken } from '../libs/verifyToken.js';
 import User from "../models/User.js";
 import Message from './../models/Message.js';
 import Group from '../models/Group.js';
@@ -15,8 +16,8 @@ export const createConversation = async (req, res) => {
         const { type, name, memberIds } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         // Kiểm tra dữ liệu đầu vào
         if (!type || (type === 'GROUP' && !name) || !memberIds || !Array.isArray(memberIds)
@@ -27,6 +28,7 @@ export const createConversation = async (req, res) => {
         if (type === 'DIRECT') {
             const participantId = memberIds[0];
             conversation = await Conversation.findOne({
+                type: 'DIRECT',
                 "participants.userId": { $all: [userId, participantId] },
             })
             if (!conversation) {
@@ -99,8 +101,8 @@ export const getConversations = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         const conversations = await Conversation.find({
             "participants.userId": userId
@@ -170,8 +172,8 @@ export const renameGroup = async (req, res) => {
         if (!conversationId || !name) return res.status(400).json({ message: 'conversationId and name required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -195,8 +197,8 @@ export const addGroupMember = async (req, res) => {
         if (!conversationId || !memberId) return res.status(400).json({ message: 'conversationId and memberId required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId)
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -250,8 +252,8 @@ export const removeGroupMember = async (req, res) => {
         if (!conversationId || !memberId) return res.status(400).json({ message: 'conversationId and memberId required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -301,8 +303,8 @@ export const assignDeputy = async (req, res) => {
         if (!conversationId || !memberId || !action) return res.status(400).json({ message: 'conversationId, memberId and action required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -356,8 +358,8 @@ export const deleteGroup = async (req, res) => {
         if (!conversationId) return res.status(400).json({ message: 'conversationId required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -386,8 +388,8 @@ export const leaveGroup = async (req, res) => {
         if (!conversationId) return res.status(400).json({ message: 'conversationId required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group conversation not found' })
@@ -433,8 +435,8 @@ export const markAsRead = async (req, res) => {
         const { conversationId } = req.params
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = String(user._id)
         await Conversation.findByIdAndUpdate(conversationId, { [`unreadCounts.${userId}`]: 0 }).exec()
         return res.status(200).json({ success: true })
@@ -448,8 +450,8 @@ export const getInviteLink = async (req, res) => {
         const { conversationId } = req.params
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group not found' })
@@ -476,8 +478,8 @@ export const joinByInvite = async (req, res) => {
         if (!inviteCode) return res.status(400).json({ message: 'inviteCode required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const group = await Group.findOne({ inviteCode })
         if (!group) return res.status(404).json({ message: 'Mã mời không hợp lệ' })
@@ -522,8 +524,8 @@ export const transferOwnership = async (req, res) => {
         if (!conversationId || !newOwnerId) return res.status(400).json({ message: 'conversationId and newOwnerId required' })
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
         const conv = await Conversation.findById(conversationId).populate('groupId')
         if (!conv || conv.type !== 'GROUP') return res.status(404).json({ message: 'Group not found' })

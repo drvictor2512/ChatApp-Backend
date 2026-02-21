@@ -1,6 +1,7 @@
-// Soket để quản lý trạng thái online/offline của người dùng và các sự kiện liên quan đến cuộc trò chuyện
+// Soket để quản lý trạng thái online/offline của người dùng, sự kiện cuộc trò chuyện và chat AI
 import User from '../models/User.js'
 import Conversation from '../models/Conversation.js'
+import { handleAIMessage } from '../controllers/aiController.js'
 
 const onlineUsers = new Map()
 
@@ -65,6 +66,15 @@ export function initSockets(io) {
 
         socket.on('leaveConversation', ({ conversationId } = {}) => {
             if (conversationId) socket.leave(`conv:${conversationId}`)
+        })
+
+        // AI chat: client phát ai_message { token, content, file? }
+        // Server phát lại: ai_user_message → ai_chunk (nhiều lần) → ai_done  hoặc ai_error
+        socket.on('ai_message', (data) => {
+            handleAIMessage(socket, data || {}).catch(err => {
+                console.error('[socket] ai_message uncaught error:', err)
+                socket.emit('ai_error', { message: err.message || 'Lỗi hệ thống' })
+            })
         })
 
         socket.on('disconnect', async () => {

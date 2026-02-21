@@ -9,7 +9,6 @@ const userSchema = new mongoose.Schema({
     bannerUrl: { type: String },
     bio: { type: String },
     lastSeen: { type: Date },
-    token: { type: String },
     verified: { type: Boolean, default: false },
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });

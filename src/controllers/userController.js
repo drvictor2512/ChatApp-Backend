@@ -1,6 +1,7 @@
 import User from '../models/User.js'
 import { uploadFile } from '../util/fileService.js'
 import { getIo } from '../libs/socket.js'
+import { getUserByToken } from '../libs/verifyToken.js'
 
 export const searchUserByEmail = async (req, res) => {
     try {
@@ -24,8 +25,7 @@ export const updateProfile = async (req, res) => {
         const token = getTokenFromHeader(req)
         if (!token) throw new Error('Token không tồn tại trong header Authorization')
 
-        const user = await User.findOne({ token })
-        if (!user) throw new Error('Người dùng không tồn tại hoặc token không hợp lệ')
+        const user = await getUserByToken(token);
 
         const { name, dateOfBirth, bio, gender, bannerUrl } = req.body
         if (name) user.name = name
@@ -59,8 +59,7 @@ export const uploadAvatar = async (req, res) => {
         const token = getTokenFromHeader(req)
         if (!token) throw new Error('Token không tồn tại trong header Authorization')
 
-        const user = await User.findOne({ token })
-        if (!user) throw new Error('Người dùng không tồn tại hoặc token không hợp lệ')
+        const user = await getUserByToken(token);
 
         const file = req.file
         if (!file) throw new Error('Không có file được gửi lên')
@@ -88,8 +87,7 @@ export const uploadBanner = async (req, res) => {
         const token = getTokenFromHeader(req)
         if (!token) throw new Error('Token không tồn tại trong header Authorization')
 
-        const user = await User.findOne({ token })
-        if (!user) throw new Error('Người dùng không tồn tại hoặc token không hợp lệ')
+        const user = await getUserByToken(token);
 
         const file = req.file
         if (!file) throw new Error('Không có file được gửi lên')
@@ -117,8 +115,7 @@ export const getProfile = async (req, res) => {
         const token = getTokenFromHeader(req)
         if (!token) throw new Error('Token không tồn tại trong header Authorization')
 
-        const user = await User.findOne({ token })
-        if (!user) throw new Error('Người dùng không tồn tại hoặc token không hợp lệ')
+        const user = await getUserByToken(token);
 
         const safe = user.toObject()
         delete safe.password
@@ -144,8 +141,8 @@ export const blockUser = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const { targetId } = req.body
         if (!targetId) return res.status(400).json({ message: 'targetId is required' })
         if (String(user._id) === String(targetId)) return res.status(400).json({ message: 'Không thể tự chặn bản thân' })
@@ -165,8 +162,8 @@ export const unblockUser = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const { targetId } = req.body
         if (!targetId) return res.status(400).json({ message: 'targetId is required' })
         user.blockedUsers = user.blockedUsers.filter(id => String(id) !== String(targetId))
@@ -183,8 +180,9 @@ export const getBlockedUsers = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token }).populate('blockedUsers', '_id name avatarUrl email').lean()
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
+        user = await user.constructor.findById(user._id).populate('blockedUsers', '_id name avatarUrl email').lean()
         res.status(200).json({ blockedUsers: user.blockedUsers || [] })
     } catch (error) {
         res.status(500).json({ message: error.message })

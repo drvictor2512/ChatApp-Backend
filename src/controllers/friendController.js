@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import { getUserByToken } from '../libs/verifyToken.js';
 import Friend from './../models/Friend.js';
 import FriendRequest from './../models/FriendRequest.js';
 import { getIo } from '../libs/socket.js'
@@ -13,8 +14,8 @@ export const sendFriendRequest = async (req, res) => {
         const { to, message } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const from = user._id
 
         // Không thể gửi yêu cầu kết bạn cho chính mình
@@ -69,8 +70,8 @@ export const acceptFriendRequest = async (req, res) => {
         const { requestId } = req.params;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         // Tìm yêu cầu kết bạn theo ID
         const request = await FriendRequest.findById(requestId);
@@ -113,8 +114,8 @@ export const declineFriendRequest = async (req, res) => {
         const { requestId } = req.params;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         const request = await FriendRequest.findById(requestId);
         if (!request) {
@@ -140,8 +141,8 @@ export const getAllFriends = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         const friendships = await Friend.find({
             $or: [{ userIdA: userId }, { userIdB: userId }]
@@ -162,8 +163,8 @@ export const getFriendsRequest = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         const populateFields = '_id email name avatarUrl';
         const [sent, receive] = await Promise.all([
@@ -181,8 +182,8 @@ export const unfriend = async (req, res) => {
         const { otherUserId } = req.params;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
-        const user = await User.findOne({ token })
-        if (!user) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const userId = user._id;
         if (userId.toString() === otherUserId.toString()) {
             return res.status(400).json({ message: 'Không thể huỷ kết bạn với chính mình' });

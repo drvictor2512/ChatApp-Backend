@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import { createToken } from './../libs/createToken.js';
 import { verifyOTPInternal } from './otpController.js';
 import { signoutByToken } from '../util/signoutHelper.js';
+import { getUserByToken } from '../libs/verifyToken.js';
 import { sendEmail } from "../libs/nodeMailer.js";
 import OTP from "../models/OTP.js";
 import { generateOTP } from "../util/generateOTP.js";
@@ -75,13 +76,12 @@ export const signIn = async (req, res) => {
             // Verify provided OTP using shared helper
             await verifyOTPInternal(email, otp);
             fetchUser.verified = true;
+            await fetchUser.save();
         }
 
-        // Tạo và gán token
+        // Tạo token và trả về thông tin người dùng cùng token
         const tokenData = { userId: fetchUser._id, email };
         const token = await createToken(tokenData)
-        fetchUser.token = token;
-        await fetchUser.save();
         res.status(200).json({ message: "Đăng nhập thành công", fetchUser, token });
 
     } catch (error) {
@@ -90,7 +90,7 @@ export const signIn = async (req, res) => {
     }
 }
 
-// Đăng xuất (set verified = false và xóa token)
+// Đăng xuất
 export const signOut = async (req, res) => {
     try {
         const authHeader = req.headers.authorization || '';
@@ -117,10 +117,7 @@ export const changePassword = async (req, res) => {
             throw new Error('Token không tồn tại trong header Authorization');
         }
 
-        const user = await User.findOne({ token });
-        if (!user) {
-            throw new Error('Người dùng không tồn tại hoặc token không hợp lệ');
-        }
+        const user = await getUserByToken(token);
 
         const isPasswordValid = await verifyHashedData(oldPassword, user.password);
         if (!isPasswordValid) {
