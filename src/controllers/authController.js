@@ -67,14 +67,14 @@ export const signIn = async (req, res) => {
         if (!isPasswordValid) {
             throw new Error("Mật khẩu không đúng");
         }
-        // Kiểm tra xác thực OTP nếu người dùng chưa được xác thực
-        if (!fetchUser.verified) {
-            if (!otp) {
-                return res.status(401).json({ message: "OTP required", otpRequired: true });
-            }
+        // Luôn yêu cầu OTP khi đăng nhập
+        if (!otp) {
+            return res.status(401).json({ message: "OTP required", otpRequired: true });
+        }
 
-            // Verify provided OTP using shared helper
-            await verifyOTPInternal(email, otp);
+        // Verify OTP
+        await verifyOTPInternal(email, otp);
+        if (!fetchUser.verified) {
             fetchUser.verified = true;
             await fetchUser.save();
         }

@@ -7,7 +7,7 @@ import { getUserByToken } from '../libs/verifyToken.js';
 
 // Định nghĩa một ObjectId cố định cho bot AI để dễ dàng nhận diện trong DB
 export const AI_BOT_ID = new mongoose.Types.ObjectId('000000000000000000000001');
-const AI_BOT_NAME = 'Gemini AI';
+const AI_BOT_NAME = 'Chatbox AI';
 const AI_BOT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/120px-Google_Gemini_logo.svg.png';
 
 const SYSTEM_INSTRUCTION =
