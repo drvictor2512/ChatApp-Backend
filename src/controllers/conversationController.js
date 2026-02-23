@@ -184,6 +184,21 @@ export const renameGroup = async (req, res) => {
         if (!(participant.role === 'Trưởng nhóm' || participant.role === 'Phó nhóm')) return res.status(403).json({ message: 'Không đủ quyền' })
 
         await Group.findByIdAndUpdate(conv.groupId._id, { name }).exec()
+
+        // Tạo system message và emit socket để client cập nhật ngay
+        try {
+            const sysMsg = await Message.create({ conversationId, senderId: user._id, content: `${user.name} đã đổi tên nhóm thành ${name}`, isSystem: true })
+            conv.lastMessage = { _id: sysMsg._id, content: sysMsg.content, senderId: user._id, createdAt: sysMsg.createdAt }
+            conv.lastMessageAt = sysMsg.createdAt
+            await conv.save()
+            const io = getIo()
+            if (io) {
+                const populatedMsg = await Message.findById(sysMsg._id).populate('senderId', 'name avatarUrl')
+                io.to(`conv:${conversationId}`).emit('new_message', populatedMsg)
+                io.to(`conv:${conversationId}`).emit('group_updated', { conversationId })
+            }
+        } catch (e) { console.error('system message / emit failed', e) }
+
         return res.status(200).json({ message: 'Đổi tên nhóm thành công' })
     } catch (e) {
         console.error(e)

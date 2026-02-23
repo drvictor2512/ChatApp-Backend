@@ -13,7 +13,9 @@ import conversationRouter from './routes/conversationRoutes.js';
 import { setIo } from './libs/socket.js'
 import { initSockets } from './socket/index.js'
 import aiRouter from './routes/aiRoutes.js';
+import job from './libs/cron.js';
 
+job.start()
 const app = express();
 const PORT = process.env.PORT || 3000;
 const bodyParser = express.json();
