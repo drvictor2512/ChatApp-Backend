@@ -1,33 +1,29 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-const AUTH_EMAIL = process.env.AUTH_EMAIL;
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    port: 465,
-    secure: true,
-    auth: {
-        user: AUTH_EMAIL,
-        pass: AUTH_PASSWORD,
-    },
-});
+if (!resend) {
+    console.warn('RESEND_API_KEY is not set. Email sending will fail.');
+}
 
-transporter.verify((error, success) => {
-    if (error) {
-        console.log('Lỗi kết nối với dịch vụ email: ', error);
-    } else {
-        console.log('Kết nối với dịch vụ email thành công');
-        console.log(success);
-    }
-});
 
 export const sendEmail = async (mailOptions) => {
+    const { from, to, subject, html, text } = mailOptions;
+    if (!to) {
+        throw new Error('Missing `to` in mailOptions');
+    }
     try {
-        await transporter.sendMail(mailOptions);
-        return;
+        const result = await resend.emails.send({
+            from: from,
+            to,
+            subject,
+            html,
+            text,
+        });
+        console.log('Resend send response:', result);
+        return result;
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Error sending email via Resend:', error?.response || error);
         throw new Error('Không thể gửi email');
     }
-}
+};
