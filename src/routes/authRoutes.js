@@ -1,19 +1,19 @@
 import express from 'express';
-import { signIn, signUp, signOut, changePassword, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { signIn, signUp, verifySignUpOTP, changePassword, forgotPassword, resetPassword } from '../controllers/authController.js';
 import { sendVerificationOTPEmail } from '../controllers/otpController.js';
 
 const authRouter = express.Router();
 // Signup route
 authRouter.post('/signup', signUp)
 
+// Verify OTP after signup route
+authRouter.post('/verify-otp', verifySignUpOTP)
+
 // Signin route
 authRouter.post('/signin', signIn)
 
 // OTP send route
 authRouter.post('/otp', sendVerificationOTPEmail)
-
-// Signout route
-authRouter.post('/signout', signOut)
 
 // Change password route
 authRouter.post('/change-password', changePassword)

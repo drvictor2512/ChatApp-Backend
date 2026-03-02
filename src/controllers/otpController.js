@@ -15,10 +15,6 @@ export const sendVerificationOTPEmail = async (req, res) => {
         if (!email) {
             throw new Error("Thiếu thông tin bắt buộc: email")
         }
-        const existingUser = await User.findOne({ email });
-        if (!existingUser) {
-            throw new Error("Email không tồn tại trong hệ thống")
-        }
         // Xóa OTP cũ nếu có
         await OTP.deleteOne({ email })
 

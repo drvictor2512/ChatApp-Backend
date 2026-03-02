@@ -2,7 +2,6 @@ import { hashData, verifyHashedData } from "../libs/hashData.js";
 import User from "../models/User.js";
 import { createToken } from './../libs/createToken.js';
 import { verifyOTPInternal } from './otpController.js';
-import { signoutByToken } from '../util/signoutHelper.js';
 import { getUserByToken } from '../libs/verifyToken.js';
 import { sendEmail } from "../libs/nodeMailer.js";
 import OTP from "../models/OTP.js";
@@ -41,9 +40,23 @@ export const signUp = async (req, res) => {
             dob = d
         }
         // Tạo người dùng mới
-        const newUser = new User({ email, password: hashedPassword, name, gender, ...(dob ? { dateOfBirth: dob } : {}) });
+        const newUser = new User({ email, password: hashedPassword, name, gender, ...(dob ? { dateOfBirth: dob } : {}), verified: false });
         await newUser.save();
-        res.status(201).json({ message: "Đăng ký thành công" });
+        res.status(201).json({ message: "Đăng ký thành công, vui lòng xác thực OTP" });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+}
+
+// Xác thực OTP sau đăng ký
+export const verifySignUpOTP = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            throw new Error('Thiếu thông tin bắt buộc');
+        }
+        await verifyOTPInternal(email, otp);
+        res.status(200).json({ message: 'Xác thực tài khoản thành công' });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
@@ -51,7 +64,7 @@ export const signUp = async (req, res) => {
 // Đăng nhập
 export const signIn = async (req, res) => {
     try {
-        const { email, password, otp } = req.body;
+        const { email, password } = req.body;
         // Validate dữ liệu đầu vào
         if (!email || !password) {
             throw new Error("Thiếu thông tin bắt buộc");
@@ -67,40 +80,15 @@ export const signIn = async (req, res) => {
         if (!isPasswordValid) {
             throw new Error("Mật khẩu không đúng");
         }
-        // Luôn yêu cầu OTP khi đăng nhập
-        if (!otp) {
-            return res.status(401).json({ message: "OTP required", otpRequired: true });
-        }
-
-        // Verify OTP
-        await verifyOTPInternal(email, otp);
+        // Kiểm tra tài khoản đã xác thực chưa
         if (!fetchUser.verified) {
-            fetchUser.verified = true;
-            await fetchUser.save();
+            throw new Error("Tài khoản chưa được xác thực. Vui lòng xác thực OTP trước khi đăng nhập");
         }
-
         // Tạo token và trả về thông tin người dùng cùng token
         const tokenData = { userId: fetchUser._id, email };
         const token = await createToken(tokenData)
         res.status(200).json({ message: "Đăng nhập thành công", fetchUser, token });
 
-    } catch (error) {
-
-        res.status(400).json({ message: error.message });
-    }
-}
-
-// Đăng xuất
-export const signOut = async (req, res) => {
-    try {
-        const authHeader = req.headers.authorization || '';
-        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-        if (!token) {
-            throw new Error('Token không tồn tại trong header Authorization');
-        }
-        const result = await signoutByToken(token)
-        if (!result) throw new Error('Người dùng không tìm thấy hoặc token không hợp lệ')
-        res.status(200).json({ message: 'Đăng xuất thành công', user: result });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
