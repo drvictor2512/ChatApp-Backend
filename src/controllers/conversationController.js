@@ -1,4 +1,4 @@
-import Conversation from "../models/Conversation.js";
+﻿import Conversation from "../models/Conversation.js";
 import { getUserByToken } from '../libs/verifyToken.js';
 import User from "../models/User.js";
 import Message from './../models/Message.js';
@@ -93,7 +93,7 @@ export const createConversation = async (req, res) => {
         return res.status(201).json(conversation)
     } catch (error) {
         console.error('Lỗi khi tạo cuộc trò chuyện:', error)
-        return res.status(500).json({ message: 'Lỗi máy chủ nội bộ' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -136,7 +136,7 @@ export const getConversations = async (req, res) => {
         return res.status(200).json({ conversations: formatted })
     } catch (error) {
         console.error('Lỗi khi lấy danh sách cuộc trò chuyện:', error)
-        return res.status(500).json({ message: 'Lỗi máy chủ nội bộ' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -161,7 +161,7 @@ export const getMessages = async (req, res) => {
 
     } catch (error) {
         console.error('Lỗi khi lấy tin nhắn:', error)
-        return res.status(500).json({ message: 'Lỗi máy chủ nội bộ' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -202,7 +202,7 @@ export const renameGroup = async (req, res) => {
         return res.status(200).json({ message: 'Đổi tên nhóm thành công' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -257,7 +257,7 @@ export const addGroupMember = async (req, res) => {
         return res.status(200).json({ message: 'Đã thêm thành viên' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -308,7 +308,7 @@ export const removeGroupMember = async (req, res) => {
         return res.status(200).json({ message: 'Đã xóa thành viên' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -363,7 +363,7 @@ export const assignDeputy = async (req, res) => {
         return res.status(200).json({ message: 'Đã cập nhật quyền phó nhóm' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -393,7 +393,7 @@ export const deleteGroup = async (req, res) => {
         return res.status(200).json({ message: 'Đã xóa nhóm' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -441,7 +441,7 @@ export const leaveGroup = async (req, res) => {
         return res.status(200).json({ message: 'Bạn đã rời nhóm' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -456,7 +456,7 @@ export const markAsRead = async (req, res) => {
         await Conversation.findByIdAndUpdate(conversationId, { [`unreadCounts.${userId}`]: 0 }).exec()
         return res.status(200).json({ success: true })
     } catch (e) {
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -483,7 +483,7 @@ export const getInviteLink = async (req, res) => {
         return res.status(200).json({ inviteCode: group.inviteCode })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -529,7 +529,7 @@ export const joinByInvite = async (req, res) => {
         return res.status(200).json({ message: 'Tham gia nhóm thành công', conversationId: conv._id })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -589,6 +589,6 @@ export const transferOwnership = async (req, res) => {
         return res.status(200).json({ message: 'Đã chuyển quyền trưởng nhóm' })
     } catch (e) {
         console.error(e)
-        return res.status(500).json({ message: 'Server error' })
+        return res.status(500).json({ message: error.message })
     }
 }

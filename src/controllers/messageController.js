@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+﻿import User from "../models/User.js";
 import { getUserByToken } from '../libs/verifyToken.js';
 import Conversation from './../models/Conversation.js';
 import Message from './../models/Message.js';
@@ -78,7 +78,7 @@ export const sendDirectMessage = async (req, res) => {
         return res.status(201).json({ message: populatedMessage })
     } catch (error) {
         console.error('Lỗi gửi tin nhắn trực tiếp:', error);
-        return res.status(500).json({ message: 'Lỗi hệ thống' })
+        return res.status(500).json({ message: error.message })
     }
 
 }
@@ -108,7 +108,7 @@ export const recallMessage = async (req, res) => {
         return res.json({ success: true, messageId: message._id })
     } catch (error) {
         console.error('Lỗi thu hồi tin nhắn:', error)
-        return res.status(500).json({ message: 'Lỗi hệ thống' })
+        return res.status(500).json({ message: error.message })
     }
 }
 
@@ -145,7 +145,7 @@ export const sendGroupMessage = async (req, res) => {
         return res.status(201).json({ message: populatedMessage })
     } catch (error) {
         console.error('Lỗi gửi tin nhắn nhóm:', error);
-        return res.status(500).json({ message: 'Lỗi hệ thống' })
+        return res.status(500).json({ message: error.message })
     }
 
 }

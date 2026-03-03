@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+﻿import { GoogleGenAI } from '@google/genai';
 import mongoose from 'mongoose';
 import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
@@ -51,7 +51,7 @@ export const getAIConversation = async (req, res) => {
         return res.status(200).json({ conversation: conv });
     } catch (err) {
         console.error('getAIConversation error:', err);
-        return res.status(500).json({ message: 'Lỗi hệ thống' });
+        return res.status(500).json({ message: err.message });
     }
 };
 
@@ -78,7 +78,7 @@ export const clearAIMessages = async (req, res) => {
         return res.status(200).json({ message: 'Đã xoá lịch sử chat AI' });
     } catch (err) {
         console.error('clearAIMessages error:', err);
-        return res.status(500).json({ message: 'Lỗi hệ thống' });
+        return res.status(500).json({ message: err.message });
     }
 };
 
@@ -115,7 +115,7 @@ export const getAIMessages = async (req, res) => {
         return res.status(200).json({ messages: enriched });
     } catch (err) {
         console.error('getAIMessages error:', err);
-        return res.status(500).json({ message: 'Lỗi hệ thống' });
+        return res.status(500).json({ message: err.message });
     }
 };
 

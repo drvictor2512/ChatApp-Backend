@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+﻿import User from "../models/User.js";
 import { getUserByToken } from '../libs/verifyToken.js';
 import Friend from './../models/Friend.js';
 import FriendRequest from './../models/FriendRequest.js';
@@ -62,7 +62,7 @@ export const sendFriendRequest = async (req, res) => {
         res.status(200).json({ message: 'Đã gửi yêu cầu kết bạn', request: populatedRequest });
     } catch (error) {
         console.error('Lỗi khi thêm bạn:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi thêm bạn' });
+        res.status(500).json({ message: error.message });
     }
 }
 export const acceptFriendRequest = async (req, res) => {
@@ -106,7 +106,7 @@ export const acceptFriendRequest = async (req, res) => {
         });
     } catch (error) {
         console.error('Lỗi khi chấp nhận kết bạn:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi chấp nhận kết bạn' });
+        res.status(500).json({ message: error.message });
     }
 }
 export const declineFriendRequest = async (req, res) => {
@@ -134,7 +134,7 @@ export const declineFriendRequest = async (req, res) => {
         res.status(200).json({ message: 'Đã từ chối yêu cầu kết bạn' });
     } catch (error) {
         console.error('Lỗi khi từ chối kết bạn:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi từ chối kết bạn' });
+        res.status(500).json({ message: error.message });
     }
 }
 export const getAllFriends = async (req, res) => {
@@ -156,7 +156,7 @@ export const getAllFriends = async (req, res) => {
         res.status(200).json({ friends });
     } catch (error) {
         console.error('Lỗi khi lấy danh sách bạn bè:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi lấy danh sách bạn bè' });
+        res.status(500).json({ message: error.message });
     }
 }
 export const getFriendsRequest = async (req, res) => {
@@ -174,7 +174,7 @@ export const getFriendsRequest = async (req, res) => {
         res.status(200).json({ sent, receive });
     } catch (error) {
         console.error('Lỗi khi lấy danh sách yêu cầu kết bạn:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi lấy danh sách yêu cầu kết bạn' });
+        res.status(500).json({ message: error.message });
     }
 }
 export const unfriend = async (req, res) => {
@@ -206,6 +206,6 @@ export const unfriend = async (req, res) => {
         res.status(200).json({ message: 'Đã huỷ kết bạn' });
     } catch (error) {
         console.error('Lỗi khi huỷ bạn:', error);
-        res.status(500).json({ message: 'Lỗi máy chủ khi huỷ bạn' });
+        res.status(500).json({ message: error.message });
     }
 }
