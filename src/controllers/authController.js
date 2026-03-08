@@ -155,7 +155,7 @@ export const forgotPassword = async (req, res) => {
             from: process.env.RESEND_DOMAIN,
             to: email,
             subject,
-            html: `<p>${message}</p><p style="color:tomato; font-size:25px; letter-spacing: 2px;"><b>${generatedOTP}</b></p><p>Mã OTP này sẽ hết hạn trong ${duration} giờ.</p>`
+            html: `<p>${message}</p><p style="color:tomato; font-size:25px; letter-spacing: 2px;"><b>${generatedOTP}</b></p><p>Mã OTP này sẽ hết hạn trong 15 phút.</p>`
         }
         await sendEmail(mailOption);
         const hashedOTP = await hashData(generatedOTP);
