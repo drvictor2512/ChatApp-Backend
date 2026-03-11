@@ -61,6 +61,7 @@ export const createConversation = async (req, res) => {
                 ownerId: userId,
                 deputyIds: [],
                 createdBy: userId,
+                inviteCode: crypto.randomBytes(6).toString('hex'),
             })
             await group.save();
 
@@ -88,7 +89,7 @@ export const createConversation = async (req, res) => {
         await conversation.populate([
             { path: 'participants.userId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' },
             { path: 'lastMessage.senderId', select: 'name avatarUrl email' },
-            { path: 'groupId', select: 'name ownerId deputyIds' },
+            { path: 'groupId', select: 'name ownerId deputyIds inviteCode' },
         ])
         return res.status(201).json(conversation)
     } catch (error) {
