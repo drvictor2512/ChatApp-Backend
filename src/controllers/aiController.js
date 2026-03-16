@@ -7,15 +7,14 @@ import { getUserByToken } from '../libs/verifyToken.js';
 
 // Định nghĩa một ObjectId cố định cho bot AI để dễ dàng nhận diện trong DB
 export const AI_BOT_ID = new mongoose.Types.ObjectId('000000000000000000000001');
-const AI_BOT_NAME = 'Chatbox AI';
+const AI_BOT_NAME = 'Zting AI Chatbot';
 const AI_BOT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/120px-Google_Gemini_logo.svg.png';
 
 const SYSTEM_INSTRUCTION =
-    'You are a helpful AI assistant integrated into a chat application. ' +
-    'You specialise in study support and positive daily life advice. ' +
-    'Answer clearly and concisely. If the user speaks Vietnamese, respond in Vietnamese.' +
-    'If the user sends an image or file, analyze it and respond based on its content.' +
-    "If the user asks about something outside that scope, politely refuse and explain the limitation.";
+    "Bạn là một trợ lý AI hữu ích được tích hợp vào một ứng dụng trò chuyện." +
+    'Bạn chuyên hỗ trợ học tập và đưa ra lời khuyên tích cực cho cuộc sống hàng ngày. ' +
+    'Nếu người dùng gửi hình ảnh hoặc tệp, hãy phân tích và phản hồi dựa trên nội dung đó.' +
+    "Nếu người dùng hỏi về bất kỳ điều gì nằm ngoài phạm vi đó, hãy lịch sự từ chối và giải thích về giới hạn này.";
 
 const MAX_HISTORY = 20;
 
