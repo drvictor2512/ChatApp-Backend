@@ -1,5 +1,5 @@
 import express from 'express';
-import { signIn, signUp, verifySignUpOTP, changePassword, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { signIn, signUp, verifySignUpOTP, changePassword, closeAccount, forgotPassword, resetPassword } from '../controllers/authController.js';
 import { sendVerificationOTPEmail } from '../controllers/otpController.js';
 
 const authRouter = express.Router();
@@ -17,6 +17,9 @@ authRouter.post('/otp', sendVerificationOTPEmail)
 
 // Change password route
 authRouter.post('/change-password', changePassword)
+
+// Close account route
+authRouter.post('/close-account', closeAccount)
 
 // Forgot password route
 authRouter.post('/forgot-password', forgotPassword);

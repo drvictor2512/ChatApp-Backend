@@ -6,6 +6,10 @@ import { getUserByToken } from '../libs/verifyToken.js';
 import { sendEmail } from "../libs/nodeMailer.js";
 import OTP from "../models/OTP.js";
 import { generateOTP } from "../util/generateOTP.js";
+import Friend from "../models/Friend.js";
+import FriendRequest from "../models/FriendRequest.js";
+import Conversation from "../models/Conversation.js";
+import Message from "../models/Message.js";
 
 // Đăng ký
 export const signUp = async (req, res) => {
@@ -125,6 +129,97 @@ export const changePassword = async (req, res) => {
         await user.save();
 
         res.status(200).json({ message: 'Đổi mật khẩu thành công' });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+}
+
+// Đóng tài khoản
+export const closeAccount = async (req, res) => {
+    try {
+        const { password } = req.body;
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+        if (!token) {
+            throw new Error('Token không tồn tại trong header Authorization');
+        }
+        if (!password) {
+            throw new Error('Mật khẩu là bắt buộc để đóng tài khoản');
+        }
+
+        const user = await getUserByToken(token);
+
+        const isPasswordValid = await verifyHashedData(password, user.password);
+        if (!isPasswordValid) {
+            throw new Error('Mật khẩu không đúng');
+        }
+
+        const userId = String(user._id);
+
+        await Friend.deleteMany({
+            $or: [{ userIdA: user._id }, { userIdB: user._id }]
+        });
+
+        await FriendRequest.deleteMany({
+            $or: [{ fromUserId: user._id }, { toUserId: user._id }]
+        });
+
+        const directConversations = await Conversation.find({
+            type: 'DIRECT',
+            'participants.userId': user._id
+        }).select('_id').lean();
+
+        const directConversationIds = directConversations.map((item) => item._id);
+
+        if (directConversationIds.length > 0) {
+            await Message.deleteMany({ conversationId: { $in: directConversationIds } });
+            await Conversation.deleteMany({ _id: { $in: directConversationIds } });
+        }
+
+        const groupConversations = await Conversation.find({
+            type: 'GROUP',
+            'participants.userId': user._id
+        });
+
+        for (const conv of groupConversations) {
+            conv.participants = (conv.participants || []).filter(
+                (participant) => String(participant.userId) !== userId
+            );
+
+            if (conv.group) {
+                conv.group.deputyIds = (conv.group.deputyIds || []).filter(
+                    (id) => String(id) !== userId
+                );
+
+                if (String(conv.group.ownerId || '') === userId) {
+                    const nextOwner = conv.participants?.[0]?.userId || null;
+                    conv.group.ownerId = nextOwner;
+
+                    if (nextOwner) {
+                        conv.participants = (conv.participants || []).map((participant) => {
+                            if (String(participant.userId) === String(nextOwner)) {
+                                return { ...participant.toObject(), role: 'Trưởng nhóm' };
+                            }
+                            return participant;
+                        });
+                    }
+                }
+            }
+
+            if (!conv.participants || conv.participants.length === 0) {
+                await Message.deleteMany({ conversationId: conv._id });
+                await Conversation.deleteOne({ _id: conv._id });
+                continue;
+            }
+
+            await conv.save();
+        }
+
+        await OTP.deleteOne({ email: user.email });
+        await User.deleteOne({ _id: user._id });
+
+        res.status(200).json({ message: 'Đóng tài khoản thành công' });
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
