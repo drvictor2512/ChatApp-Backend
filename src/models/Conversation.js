@@ -16,6 +16,7 @@ const groupSchema = new mongoose.Schema({
 
 const lastMessageSub = new mongoose.Schema({
     content: { type: String },
+    fileUrl: { type: String },
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdAt: { type: Date },
 }, { _id: false });

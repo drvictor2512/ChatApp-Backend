@@ -4,6 +4,7 @@ export const updateConversationAfterCreateMessage = async (conversation, message
         lastMessage: {
             _id: message._id,
             content: message.content,
+            fileUrl: message.fileUrl,
             senderId,
             createdAt: message.createdAt
         }
