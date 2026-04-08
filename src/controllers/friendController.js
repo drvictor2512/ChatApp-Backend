@@ -85,7 +85,7 @@ export const acceptFriendRequest = async (req, res) => {
             return res.status(403).json({ message: 'Bạn không có quyền chấp nhận yêu cầu kết bạn này' });
         }
         // Tạo mối quan hệ bạn bè
-        const friend = await Friend.create({
+        await Friend.create({
             userIdA: request.fromUserId,
             userIdB: request.toUserId
         })
@@ -95,53 +95,57 @@ export const acceptFriendRequest = async (req, res) => {
         const from = await User.findById(request.fromUserId).select('_id email name avatarUrl').lean();
         const toUser = await User.findById(request.toUserId).select('_id email name avatarUrl').lean();
 
-        // Tự động tạo hội thoại trực tiếp ngay khi hai người trở thành bạn bè.
+        // Chỉ tạo conversation + 1 system message cho lần đầu tiên hai người kết bạn.
+        // Nếu đã từng có DIRECT conversation trước đó (hủy bạn rồi kết bạn lại), không tạo lại.
         let conversation = await Conversation.findOne({
             type: 'DIRECT',
             'participants.userId': { $all: [request.fromUserId, request.toUserId] },
             $expr: { $eq: [{ $size: '$participants' }, 2] }
         });
 
-        const friendshipSystemContent = `${from?.name || 'Bạn'} và ${toUser?.name || 'Bạn'} đã trở thành bạn bè`;
-
+        let populatedSystemMessage = null;
         if (!conversation) {
             conversation = new Conversation({
                 type: 'DIRECT',
                 participants: [{ userId: request.fromUserId }, { userId: request.toUserId }],
             });
+            await conversation.save();
+
+            const friendshipSystemContent = `${from?.name || 'Bạn'} và ${toUser?.name || 'Bạn'} đã trở thành bạn bè`;
+            const systemMessage = await Message.create({
+                conversationId: conversation._id,
+                senderId: request.fromUserId,
+                content: friendshipSystemContent,
+                isSystem: true,
+            });
+
+            conversation.lastMessage = {
+                _id: systemMessage._id,
+                content: systemMessage.content,
+                senderId: request.fromUserId,
+                createdAt: systemMessage.createdAt,
+            };
+            conversation.lastMessageAt = systemMessage.createdAt;
+            await conversation.save();
+
+            populatedSystemMessage = await Message.findById(systemMessage._id)
+                .populate('senderId', 'name avatarUrl email');
         }
-
-        const systemMessage = await Message.create({
-            conversationId: conversation._id,
-            senderId: request.fromUserId,
-            content: friendshipSystemContent,
-            isSystem: true,
-        });
-
-        conversation.lastMessage = {
-            _id: systemMessage._id,
-            content: systemMessage.content,
-            senderId: request.fromUserId,
-            createdAt: systemMessage.createdAt,
-        };
-        conversation.lastMessageAt = systemMessage.createdAt;
-        await conversation.save();
 
         await conversation.populate([
             { path: 'participants.userId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' },
             { path: 'lastMessage.senderId', select: 'name avatarUrl email' },
         ]);
 
-        const populatedSystemMessage = await Message.findById(systemMessage._id)
-            .populate('senderId', 'name avatarUrl email');
-
         try {
             const io = getIo()
             if (io) {
                 io.to(`user:${request.fromUserId}`).emit('friend_accepted', { friend: toUser, conversation })
                 io.to(`user:${request.toUserId}`).emit('friend_accepted', { friend: from, conversation })
-                io.to(`user:${request.fromUserId}`).emit('new_message', populatedSystemMessage)
-                io.to(`user:${request.toUserId}`).emit('new_message', populatedSystemMessage)
+                if (populatedSystemMessage) {
+                    io.to(`user:${request.fromUserId}`).emit('new_message', populatedSystemMessage)
+                    io.to(`user:${request.toUserId}`).emit('new_message', populatedSystemMessage)
+                }
             }
         } catch (e) { }
         res.status(200).json({
