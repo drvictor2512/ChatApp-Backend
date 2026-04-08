@@ -2,6 +2,8 @@
 import { getUserByToken } from '../libs/verifyToken.js';
 import Friend from './../models/Friend.js';
 import FriendRequest from './../models/FriendRequest.js';
+import Conversation from '../models/Conversation.js';
+import Message from '../models/Message.js';
 import { getIo } from '../libs/socket.js'
 
 const getTokenFromHeader = (req) => {
@@ -92,17 +94,61 @@ export const acceptFriendRequest = async (req, res) => {
         // Trả về thông tin bạn bè mới
         const from = await User.findById(request.fromUserId).select('_id email name avatarUrl').lean();
         const toUser = await User.findById(request.toUserId).select('_id email name avatarUrl').lean();
+
+        // Tự động tạo hội thoại trực tiếp ngay khi hai người trở thành bạn bè.
+        let conversation = await Conversation.findOne({
+            type: 'DIRECT',
+            'participants.userId': { $all: [request.fromUserId, request.toUserId] },
+            $expr: { $eq: [{ $size: '$participants' }, 2] }
+        });
+
+        const friendshipSystemContent = `${from?.name || 'Bạn'} và ${toUser?.name || 'Bạn'} đã trở thành bạn bè`;
+
+        if (!conversation) {
+            conversation = new Conversation({
+                type: 'DIRECT',
+                participants: [{ userId: request.fromUserId }, { userId: request.toUserId }],
+            });
+        }
+
+        const systemMessage = await Message.create({
+            conversationId: conversation._id,
+            senderId: request.fromUserId,
+            content: friendshipSystemContent,
+            isSystem: true,
+        });
+
+        conversation.lastMessage = {
+            _id: systemMessage._id,
+            content: systemMessage.content,
+            senderId: request.fromUserId,
+            createdAt: systemMessage.createdAt,
+        };
+        conversation.lastMessageAt = systemMessage.createdAt;
+        await conversation.save();
+
+        await conversation.populate([
+            { path: 'participants.userId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' },
+            { path: 'lastMessage.senderId', select: 'name avatarUrl email' },
+        ]);
+
+        const populatedSystemMessage = await Message.findById(systemMessage._id)
+            .populate('senderId', 'name avatarUrl email');
+
         try {
             const io = getIo()
             if (io) {
-                io.to(`user:${request.fromUserId}`).emit('friend_accepted', { friend: toUser })
-                io.to(`user:${request.toUserId}`).emit('friend_accepted', { friend: from })
+                io.to(`user:${request.fromUserId}`).emit('friend_accepted', { friend: toUser, conversation })
+                io.to(`user:${request.toUserId}`).emit('friend_accepted', { friend: from, conversation })
+                io.to(`user:${request.fromUserId}`).emit('new_message', populatedSystemMessage)
+                io.to(`user:${request.toUserId}`).emit('new_message', populatedSystemMessage)
             }
         } catch (e) { }
         res.status(200).json({
             message: 'Đã chấp nhận yêu cầu kết bạn', newFriend: {
                 _id: from?._id, email: from?.email, name: from?.name, avatarUrl: from?.avatarUrl
-            }
+            },
+            conversation
         });
     } catch (error) {
         console.error('Lỗi khi chấp nhận kết bạn:', error);
