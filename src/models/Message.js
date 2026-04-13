@@ -4,6 +4,7 @@ const messageSchema = new mongoose.Schema({
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true, index: true },
     fileUrl: { type: String },
+    fileUrls: [{ type: String }],
     content: { type: String },
     isRecalled: { type: Boolean, default: false },
     isSystem: { type: Boolean, default: false },

@@ -4,8 +4,15 @@ const storage = multer.memoryStorage({
         cb(null, "/");
     }
 });
-const upload = multer({
+const uploader = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 }
-}).single("image");
-export default upload; 
+});
+
+const upload = uploader.single("image");
+export const uploadMultiple = uploader.fields([
+    { name: 'image', maxCount: 10 },
+    { name: 'file', maxCount: 10 },
+]);
+
+export default upload;

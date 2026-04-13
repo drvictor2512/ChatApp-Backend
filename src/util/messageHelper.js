@@ -5,6 +5,7 @@ export const updateConversationAfterCreateMessage = async (conversation, message
             _id: message._id,
             content: message.content,
             fileUrl: message.fileUrl,
+            fileUrls: Array.isArray(message.fileUrls) ? message.fileUrls : [],
             senderId,
             createdAt: message.createdAt
         }

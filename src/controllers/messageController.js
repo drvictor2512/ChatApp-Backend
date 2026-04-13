@@ -10,6 +10,34 @@ const getTokenFromHeader = (req) => {
     const authHeader = req.headers.authorization || ''
     return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
 }
+
+const getUploadedFiles = (req) => {
+    if (Array.isArray(req.files) && req.files.length > 0) {
+        return req.files
+    }
+    if (req.files && typeof req.files === 'object') {
+        const imageFiles = Array.isArray(req.files.image) ? req.files.image : []
+        const genericFiles = Array.isArray(req.files.file) ? req.files.file : []
+        return [...imageFiles, ...genericFiles]
+    }
+    if (req.file) {
+        return [req.file]
+    }
+    return []
+}
+
+const buildMessageFiles = async (req) => {
+    const uploadedFiles = getUploadedFiles(req)
+    if (!uploadedFiles.length) {
+        return { fileUrl: undefined, fileUrls: [] }
+    }
+
+    const fileUrls = await Promise.all(uploadedFiles.map((file) => uploadFile(file)))
+    return {
+        fileUrl: fileUrls[0],
+        fileUrls,
+    }
+}
 export const sendDirectMessage = async (req, res) => {
     try {
         const { recipientId, content, conversationId } = req.body;
@@ -21,7 +49,8 @@ export const sendDirectMessage = async (req, res) => {
 
         let conversation;
         // Kiểm tra nội dung tin nhắn hoặc file
-        if (!content && !req.file) {
+        const uploadedFiles = getUploadedFiles(req)
+        if (!content && uploadedFiles.length === 0) {
             return res.status(400).json({ message: 'Nội dung không được để trống' })
         }
         // Kiểm tra cuộc trò chuyện có tồn tại
@@ -55,12 +84,13 @@ export const sendDirectMessage = async (req, res) => {
                 unreadCounts: new Map()
             })
         }
-        const fileUrl = req.file ? await uploadFile(req.file) : undefined;
+        const { fileUrl, fileUrls } = await buildMessageFiles(req)
         const message = await Message.create({
             conversationId: conversation._id,
             senderId,
             content,
             fileUrl,
+            fileUrls,
         })
         // Populate nguời gửi để client nhận được thông tin ngay lập tức mà không cần phải reload
         const populatedMessage = await Message.findById(message._id).populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
@@ -98,6 +128,7 @@ export const recallMessage = async (req, res) => {
         message.isRecalled = true
         message.content = null
         message.fileUrl = null
+        message.fileUrls = []
         await message.save()
 
         try {
@@ -121,15 +152,17 @@ export const sendGroupMessage = async (req, res) => {
         try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
         const senderId = user._id;
         const conversation = req.conversation;
-        if (!content && !req.file) {
+        const uploadedFiles = getUploadedFiles(req)
+        if (!content && uploadedFiles.length === 0) {
             return res.status(400).json({ message: 'Nội dung không được để trống' })
         }
-        const fileUrl = req.file ? await uploadFile(req.file) : undefined;
+        const { fileUrl, fileUrls } = await buildMessageFiles(req)
         const message = await Message.create({
             conversationId,
             senderId,
             content,
             fileUrl,
+            fileUrls,
         })
         // Populate nguời gửi để client nhận được thông tin ngay lập tức mà không cần phải reload
         const populatedMessage = await Message.findById(message._id).populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
