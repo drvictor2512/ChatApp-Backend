@@ -48,10 +48,6 @@ export function initSockets(io) {
                             }
                         })
                     }
-                    // Ngoài ra gửi cả những người dùng online khác không cùng tham gia trò chuyện nhưng đã từng tham gia trò chuyện với userId để cập nhật trạng thái online của họ
-                    Array.from(onlineUsers.entries()).forEach(([id, info]) => {
-                        if (!participantIds.has(String(id))) users.push({ userId: id, status: info.status, lastSeen: info.lastSeen })
-                    })
                     socket.emit('online_users', { users })
                     console.log('[socket] online_users -> sent', users.length, 'items to', String(userId))
                 } catch (e) {
