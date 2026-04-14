@@ -1,5 +1,6 @@
 import express from 'express';
 import { createConversation, getConversations, getMessages, renameGroup, addGroupMember, removeGroupMember, assignDeputy, deleteGroup, leaveGroup, markAsRead, getInviteLink, joinByInvite, transferOwnership } from '../controllers/conversationController.js';
+import { getPinnedMessages } from '../controllers/messageController.js';
 import checkGroupMember from '../middlewares/checkGroupMember.js'
 import checkGroupAdmin, { checkGroupOwner } from '../middlewares/checkGroupAdmin.js';
 
@@ -7,6 +8,7 @@ const conversationRouter = express.Router()
 conversationRouter.post('/', createConversation)
 conversationRouter.get('/', getConversations)
 conversationRouter.get('/:conversationId/messages', getMessages)
+conversationRouter.get('/:conversationId/pinned', getPinnedMessages)
 conversationRouter.patch('/:conversationId/read', markAsRead)
 conversationRouter.get('/:conversationId/invite', getInviteLink)
 

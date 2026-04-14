@@ -58,8 +58,7 @@ const appendSystemMessageAndEmit = async ({ conversation, senderId, content }) =
 
     const io = getIo();
     if (io) {
-        const populatedMsg = await Message.findById(sysMsg._id).populate('senderId', 'name avatarUrl');
-        io.to(`conv:${conversationId}`).emit('new_message', populatedMsg);
+        io.to(`conv:${conversationId}`).emit('new_message', sysMsg);
         io.to(`conv:${conversationId}`).emit('group_updated', { conversationId });
     }
 };
@@ -239,7 +238,7 @@ export const getConversations = async (req, res) => {
 export const getMessages = async (req, res) => {
     try {
         const { conversationId } = req.params;
-        const { limit = 50, cursor } = req.query;
+        const { limit = 30, cursor } = req.query;
         const query = { conversationId };
 
         if (cursor) {
@@ -249,7 +248,10 @@ export const getMessages = async (req, res) => {
         let messages = await Message.find(query)
             .sort({ createdAt: -1 })
             .limit(Number(limit) + 1)
-            .populate({ path: 'senderId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' });
+            .populate({ path: 'senderId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' })
+            .populate({ path: 'reactions.userId', select: 'name avatarUrl' })
+            .populate({ path: 'pinnedBy', select: 'name avatarUrl' })
+            .populate({ path: 'forwardedFrom.originalSenderId', select: 'name avatarUrl' });
 
         let nextCursor = null;
         if (messages.length > Number(limit)) {
