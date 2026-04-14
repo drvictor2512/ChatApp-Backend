@@ -76,7 +76,25 @@ const populateMessage = (messageId) => {
         .populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
         .populate('reactions.userId', 'name avatarUrl')
         .populate('pinnedBy', 'name avatarUrl')
+        .populate('replyTo', 'content fileUrl fileUrls senderId isRecalled createdAt')
+        .populate('replyTo.senderId', 'name avatarUrl')
         .populate('forwardedFrom.originalSenderId', 'name avatarUrl')
+}
+
+const resolveReplyTarget = async ({ replyToMessageId, conversationId }) => {
+    const normalizedReplyId = String(replyToMessageId || '').trim()
+    if (!normalizedReplyId) return null
+
+    const replyMessage = await Message.findById(normalizedReplyId)
+    if (!replyMessage) {
+        return { error: { status: 404, message: 'Tin nhắn reply không tồn tại' } }
+    }
+
+    if (String(replyMessage.conversationId) !== String(conversationId)) {
+        return { error: { status: 400, message: 'Tin nhắn reply không thuộc cuộc trò chuyện này' } }
+    }
+
+    return { replyMessage }
 }
 
 const appendSystemMessageAndEmit = async ({ conversation, senderId, content }) => {
@@ -107,7 +125,7 @@ const appendSystemMessageAndEmit = async ({ conversation, senderId, content }) =
 }
 export const sendDirectMessage = async (req, res) => {
     try {
-        const { recipientId, content, conversationId } = req.body;
+        const { recipientId, content, conversationId, replyToMessageId } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
         let user;
@@ -152,15 +170,23 @@ export const sendDirectMessage = async (req, res) => {
             })
         }
         const { fileUrl, fileUrls } = await buildMessageFiles(req)
+        const replyResolution = await resolveReplyTarget({
+            replyToMessageId,
+            conversationId: conversation._id,
+        })
+        if (replyResolution?.error) {
+            return res.status(replyResolution.error.status).json({ message: replyResolution.error.message })
+        }
+
         const message = await Message.create({
             conversationId: conversation._id,
             senderId,
             content,
             fileUrl,
             fileUrls,
+            replyTo: replyResolution?.replyMessage?._id || null,
         })
-        // Populate nguời gửi để client nhận được thông tin ngay lập tức mà không cần phải reload
-        const populatedMessage = await Message.findById(message._id).populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
+        const populatedMessage = await populateMessage(message._id)
         updateConversationAfterCreateMessage(conversation, message, senderId);
         await conversation.save();
         // Phát sự kiện socket tới phòng trò chuyện và phòng cá nhân của người nhận.
@@ -196,11 +222,26 @@ export const recallMessage = async (req, res) => {
         message.content = null
         message.fileUrl = null
         message.fileUrls = []
+        message.reactions = []
+        message.pinnedAt = null
+        message.pinnedBy = null
         await message.save()
+
+        const populatedMessage = await populateMessage(message._id)
 
         try {
             const io = getIo()
-            if (io) io.to(`conv:${message.conversationId}`).emit('message_recalled', { messageId: message._id, conversationId: message.conversationId })
+            if (io) {
+                io.to(`conv:${message.conversationId}`).emit('message_recalled', { messageId: message._id, conversationId: message.conversationId })
+                io.to(`conv:${message.conversationId}`).emit('message_reaction_updated', {
+                    conversationId: String(message.conversationId),
+                    message: populatedMessage,
+                })
+                io.to(`conv:${message.conversationId}`).emit('message_pin_updated', {
+                    conversationId: String(message.conversationId),
+                    message: populatedMessage,
+                })
+            }
         } catch (e) { }
 
         return res.json({ success: true, messageId: message._id })
@@ -212,7 +253,7 @@ export const recallMessage = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
     try {
-        const { content, conversationId } = req.body;
+        const { content, conversationId, replyToMessageId } = req.body;
         const token = getTokenFromHeader(req)
         if (!token) return res.status(401).json({ message: 'Unauthorized' })
         let user;
@@ -224,15 +265,23 @@ export const sendGroupMessage = async (req, res) => {
             return res.status(400).json({ message: 'Nội dung không được để trống' })
         }
         const { fileUrl, fileUrls } = await buildMessageFiles(req)
+        const replyResolution = await resolveReplyTarget({
+            replyToMessageId,
+            conversationId,
+        })
+        if (replyResolution?.error) {
+            return res.status(replyResolution.error.status).json({ message: replyResolution.error.message })
+        }
+
         const message = await Message.create({
             conversationId,
             senderId,
             content,
             fileUrl,
             fileUrls,
+            replyTo: replyResolution?.replyMessage?._id || null,
         })
-        // Populate nguời gửi để client nhận được thông tin ngay lập tức mà không cần phải reload
-        const populatedMessage = await Message.findById(message._id).populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
+        const populatedMessage = await populateMessage(message._id)
         updateConversationAfterCreateMessage(conversation, message, senderId);
         await conversation.save();
         // Phát sự kiện socket tới phòng trò chuyện nhóm.
@@ -415,37 +464,6 @@ export const togglePinMessage = async (req, res) => {
         return res.status(200).json({ message: populatedMessage })
     } catch (error) {
         console.error('Lỗi ghim/bỏ ghim tin nhắn:', error)
-        return res.status(500).json({ message: error.message })
-    }
-}
-
-export const getPinnedMessages = async (req, res) => {
-    try {
-        const { conversationId } = req.params
-        const { limit = 30 } = req.query
-        const token = getTokenFromHeader(req)
-        if (!token) return res.status(401).json({ message: 'Unauthorized' })
-
-        let user
-        try {
-            user = await getUserByToken(token)
-        } catch (e) {
-            return res.status(401).json({ message: e.message })
-        }
-
-        const { error } = await ensureConversationMember({ conversationId, userId: user._id })
-        if (error) return res.status(error.status).json({ message: error.message })
-
-        const messages = await Message.find({ conversationId, pinnedAt: { $ne: null } })
-            .sort({ pinnedAt: -1 })
-            .limit(Number(limit))
-            .populate('senderId', 'name avatarUrl email dateOfBirth verified createdAt bio')
-            .populate('pinnedBy', 'name avatarUrl')
-            .populate('forwardedFrom.originalSenderId', 'name avatarUrl')
-
-        return res.status(200).json({ messages })
-    } catch (error) {
-        console.error('Lỗi lấy danh sách tin nhắn ghim:', error)
         return res.status(500).json({ message: error.message })
     }
 }

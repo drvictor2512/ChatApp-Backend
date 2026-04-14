@@ -251,6 +251,8 @@ export const getMessages = async (req, res) => {
             .populate({ path: 'senderId', select: 'name avatarUrl email dateOfBirth gender bannerUrl bio verified createdAt' })
             .populate({ path: 'reactions.userId', select: 'name avatarUrl' })
             .populate({ path: 'pinnedBy', select: 'name avatarUrl' })
+            .populate({ path: 'replyTo', select: 'content fileUrl fileUrls senderId isRecalled createdAt' })
+            .populate({ path: 'replyTo.senderId', select: 'name avatarUrl' })
             .populate({ path: 'forwardedFrom.originalSenderId', select: 'name avatarUrl' });
 
         let nextCursor = null;

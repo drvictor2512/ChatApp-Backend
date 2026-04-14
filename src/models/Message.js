@@ -15,6 +15,7 @@ const forwardedFromSchema = new mongoose.Schema({
 const messageSchema = new mongoose.Schema({
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true, index: true },
+    replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Message', default: null },
     fileUrl: { type: String },
     fileUrls: [{ type: String }],
     content: { type: String },
