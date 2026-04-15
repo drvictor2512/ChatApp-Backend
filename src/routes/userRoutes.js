@@ -1,6 +1,6 @@
 import express from 'express'
 import upload from '../middlewares/upload.js'
-import { updateProfile, uploadAvatar, uploadBanner, getProfile, searchUserByEmail, getUserById, blockUser, unblockUser, getBlockedUsers } from '../controllers/userController.js'
+import { updateProfile, uploadAvatar, uploadBanner, getProfile, searchUserByEmail, getUserById, blockUser, unblockUser, getBlockedUsers, getBlockStatus } from '../controllers/userController.js'
 
 const router = express.Router()
 
@@ -21,6 +21,7 @@ router.get('/search', searchUserByEmail)
 router.post('/block', blockUser)
 router.post('/unblock', unblockUser)
 router.get('/blocked', getBlockedUsers)
+router.get('/block-status/:targetId', getBlockStatus)
 
 // Get any user's public profile by id
 router.get('/:id', getUserById)

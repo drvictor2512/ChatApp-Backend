@@ -189,4 +189,36 @@ export const getBlockedUsers = async (req, res) => {
     }
 }
 
-export default { updateProfile, uploadAvatar, getProfile, searchUserByEmail, getUserById, blockUser, unblockUser, getBlockedUsers }
+export const getBlockStatus = async (req, res) => {
+    try {
+        const token = getTokenFromHeader(req)
+        if (!token) return res.status(401).json({ message: 'Unauthorized' })
+
+        let user
+        try {
+            user = await getUserByToken(token)
+        } catch (e) {
+            return res.status(401).json({ message: e.message })
+        }
+
+        const { targetId } = req.params
+        if (!targetId) return res.status(400).json({ message: 'targetId is required' })
+
+        const targetUser = await User.findById(targetId).select('blockedUsers').lean()
+        if (!targetUser) return res.status(404).json({ message: 'User not found' })
+
+        const blockedByMe = (user.blockedUsers || []).map(String).includes(String(targetId))
+        const blockedByTarget = (targetUser.blockedUsers || []).map(String).includes(String(user._id))
+
+        return res.status(200).json({
+            targetId: String(targetId),
+            blockedByMe,
+            blockedByTarget,
+            canMessage: !(blockedByMe || blockedByTarget),
+        })
+    } catch (error) {
+        return res.status(500).json({ message: error.message })
+    }
+}
+
+export default { updateProfile, uploadAvatar, getProfile, searchUserByEmail, getUserById, blockUser, unblockUser, getBlockedUsers, getBlockStatus }
