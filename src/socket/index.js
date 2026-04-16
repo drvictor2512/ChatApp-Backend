@@ -8,6 +8,31 @@ const onlineUsers = new Map()
 export function initSockets(io) {
     if (!io) return
     io.on('connection', (socket) => {
+        const getSocketUserId = () => (socket.data && socket.data.userId ? String(socket.data.userId) : null)
+
+        const emitCallError = (message, extra = {}) => {
+            socket.emit('call:error', { message, ...extra })
+        }
+
+        const forwardToUser = (targetUserId, event, payload) => {
+            if (!targetUserId) return
+            io.to(`user:${String(targetUserId)}`).emit(event, payload)
+        }
+
+        const getConversationMembership = async (conversationId, userId) => {
+            if (!conversationId || !userId) return { ok: false, message: 'Thiếu conversationId hoặc userId' }
+
+            const conversation = await Conversation.findById(String(conversationId)).select('_id type participants.userId').lean()
+            if (!conversation) return { ok: false, message: 'Cuộc trò chuyện không tồn tại' }
+
+            const memberIds = (conversation.participants || []).map(p => String(p?.userId)).filter(Boolean)
+            if (!memberIds.includes(String(userId))) {
+                return { ok: false, message: 'Bạn không phải thành viên cuộc trò chuyện' }
+            }
+
+            return { ok: true, conversation, memberIds }
+        }
+
         socket.on('join', async ({ userId } = {}) => {
             if (userId) {
                 socket.join(`user:${userId}`)
@@ -71,6 +96,270 @@ export function initSockets(io) {
                 console.error('[socket] ai_message uncaught error:', err)
                 socket.emit('ai_error', { message: err.message || 'Lỗi hệ thống' })
             })
+        })
+
+        // Video call signaling (WebRTC): server nhận signal và chuyển tiếp cho user đích.
+        socket.on('call:invite', (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { targetUserId, callId, conversationId = null, offer = null, metadata = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'call:invite' })
+            if (!targetUserId || !callId || !offer) return emitCallError('Thiếu targetUserId hoặc callId hoặc offer', { event: 'call:invite' })
+
+            forwardToUser(String(targetUserId), 'call:incoming', {
+                callId: String(callId),
+                conversationId: conversationId ? String(conversationId) : null,
+                fromUserId,
+                offer,
+                metadata,
+                timestamp: Date.now()
+            })
+        })
+
+        socket.on('call:answer', (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { targetUserId, callId, answer = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'call:answer' })
+            if (!targetUserId || !callId || !answer) return emitCallError('Thiếu targetUserId hoặc callId hoặc answer', { event: 'call:answer' })
+
+            forwardToUser(String(targetUserId), 'call:answered', {
+                callId: String(callId),
+                fromUserId,
+                answer,
+                timestamp: Date.now()
+            })
+        })
+
+        socket.on('call:ice-candidate', (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { targetUserId, callId, candidate = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'call:ice-candidate' })
+            if (!targetUserId || !callId || !candidate) return emitCallError('Thiếu targetUserId hoặc callId hoặc candidate', { event: 'call:ice-candidate' })
+
+            forwardToUser(String(targetUserId), 'call:ice-candidate', {
+                callId: String(callId),
+                fromUserId,
+                candidate,
+                timestamp: Date.now()
+            })
+        })
+
+        socket.on('call:reject', (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { targetUserId, callId, reason = 'rejected' } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'call:reject' })
+            if (!targetUserId || !callId) return emitCallError('Thiếu targetUserId hoặc callId', { event: 'call:reject' })
+
+            forwardToUser(String(targetUserId), 'call:rejected', {
+                callId: String(callId),
+                fromUserId,
+                reason,
+                timestamp: Date.now()
+            })
+        })
+
+        socket.on('call:end', (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { targetUserId, callId, reason = 'ended' } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'call:end' })
+            if (!targetUserId || !callId) return emitCallError('Thiếu targetUserId hoặc callId', { event: 'call:end' })
+
+            forwardToUser(String(targetUserId), 'call:ended', {
+                callId: String(callId),
+                fromUserId,
+                reason,
+                timestamp: Date.now()
+            })
+        })
+
+        // Group call signaling (mesh): frontend gửi/nhận signal theo từng peer trong cùng conversation group.
+        socket.on('group-call:start', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, metadata = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:start' })
+            if (!conversationId || !callId) return emitCallError('Thiếu conversationId hoặc callId', { event: 'group-call:start' })
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:start' })
+                if (membership.conversation.type !== 'GROUP') {
+                    return emitCallError('group-call:start chỉ áp dụng cho GROUP conversation', { event: 'group-call:start' })
+                }
+
+                socket.to(`conv:${String(conversationId)}`).emit('group-call:incoming', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    fromUserId,
+                    metadata,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:start error', e)
+                emitCallError('Lỗi hệ thống khi bắt đầu call nhóm', { event: 'group-call:start' })
+            }
+        })
+
+        socket.on('group-call:offer', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, targetUserId, offer = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:offer' })
+            if (!conversationId || !callId || !targetUserId || !offer) {
+                return emitCallError('Thiếu conversationId hoặc callId hoặc targetUserId hoặc offer', { event: 'group-call:offer' })
+            }
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:offer' })
+                if (!membership.memberIds.includes(String(targetUserId))) {
+                    return emitCallError('targetUserId không thuộc conversation', { event: 'group-call:offer' })
+                }
+
+                forwardToUser(String(targetUserId), 'group-call:offer', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    fromUserId,
+                    offer,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:offer error', e)
+                emitCallError('Lỗi hệ thống khi gửi offer nhóm', { event: 'group-call:offer' })
+            }
+        })
+
+        socket.on('group-call:answer', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, targetUserId, answer = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:answer' })
+            if (!conversationId || !callId || !targetUserId || !answer) {
+                return emitCallError('Thiếu conversationId hoặc callId hoặc targetUserId hoặc answer', { event: 'group-call:answer' })
+            }
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:answer' })
+                if (!membership.memberIds.includes(String(targetUserId))) {
+                    return emitCallError('targetUserId không thuộc conversation', { event: 'group-call:answer' })
+                }
+
+                forwardToUser(String(targetUserId), 'group-call:answer', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    fromUserId,
+                    answer,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:answer error', e)
+                emitCallError('Lỗi hệ thống khi gửi answer nhóm', { event: 'group-call:answer' })
+            }
+        })
+
+        socket.on('group-call:ice-candidate', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, targetUserId, candidate = null } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:ice-candidate' })
+            if (!conversationId || !callId || !targetUserId || !candidate) {
+                return emitCallError('Thiếu conversationId hoặc callId hoặc targetUserId hoặc candidate', { event: 'group-call:ice-candidate' })
+            }
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:ice-candidate' })
+                if (!membership.memberIds.includes(String(targetUserId))) {
+                    return emitCallError('targetUserId không thuộc conversation', { event: 'group-call:ice-candidate' })
+                }
+
+                forwardToUser(String(targetUserId), 'group-call:ice-candidate', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    fromUserId,
+                    candidate,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:ice-candidate error', e)
+                emitCallError('Lỗi hệ thống khi gửi ICE nhóm', { event: 'group-call:ice-candidate' })
+            }
+        })
+
+        socket.on('group-call:join', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:join' })
+            if (!conversationId || !callId) return emitCallError('Thiếu conversationId hoặc callId', { event: 'group-call:join' })
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:join' })
+
+                socket.to(`conv:${String(conversationId)}`).emit('group-call:user-joined', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    userId: fromUserId,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:join error', e)
+                emitCallError('Lỗi hệ thống khi join call nhóm', { event: 'group-call:join' })
+            }
+        })
+
+        socket.on('group-call:leave', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, reason = 'left' } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:leave' })
+            if (!conversationId || !callId) return emitCallError('Thiếu conversationId hoặc callId', { event: 'group-call:leave' })
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:leave' })
+
+                socket.to(`conv:${String(conversationId)}`).emit('group-call:user-left', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    userId: fromUserId,
+                    reason,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:leave error', e)
+                emitCallError('Lỗi hệ thống khi rời call nhóm', { event: 'group-call:leave' })
+            }
+        })
+
+        socket.on('group-call:end', async (payload = {}) => {
+            const fromUserId = getSocketUserId()
+            const { conversationId, callId, reason = 'ended' } = payload
+
+            if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:end' })
+            if (!conversationId || !callId) return emitCallError('Thiếu conversationId hoặc callId', { event: 'group-call:end' })
+
+            try {
+                const membership = await getConversationMembership(conversationId, fromUserId)
+                if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:end' })
+
+                io.to(`conv:${String(conversationId)}`).emit('group-call:ended', {
+                    callId: String(callId),
+                    conversationId: String(conversationId),
+                    fromUserId,
+                    reason,
+                    timestamp: Date.now()
+                })
+            } catch (e) {
+                console.error('group-call:end error', e)
+                emitCallError('Lỗi hệ thống khi kết thúc call nhóm', { event: 'group-call:end' })
+            }
         })
 
         socket.on('disconnect', async () => {
