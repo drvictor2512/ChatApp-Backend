@@ -4,6 +4,7 @@ import Conversation from '../models/Conversation.js'
 import { handleAIMessage } from '../controllers/aiController.js'
 
 const onlineUsers = new Map()
+const activeGroupCallRooms = new Map()
 
 export function initSockets(io) {
     if (!io) return
@@ -17,6 +18,21 @@ export function initSockets(io) {
         const forwardToUser = (targetUserId, event, payload) => {
             if (!targetUserId) return
             io.to(`user:${String(targetUserId)}`).emit(event, payload)
+        }
+
+        const serializeActiveRoom = (room) => ({
+            callId: String(room.callId),
+            conversationId: String(room.conversationId),
+            groupName: room.groupName || 'Nhóm chat',
+            memberCount: room.participants.size,
+            callType: room.callType || 'video',
+            startedAt: Number(room.startedAt || Date.now()),
+        })
+
+        const broadcastRoomOngoing = (conversationId) => {
+            const room = activeGroupCallRooms.get(String(conversationId))
+            if (!room) return
+            io.to(`conv:${String(conversationId)}`).emit('group-call:ongoing', serializeActiveRoom(room))
         }
 
         const getConversationMembership = async (conversationId, userId) => {
@@ -191,6 +207,24 @@ export function initSockets(io) {
                     return emitCallError('group-call:start chỉ áp dụng cho GROUP conversation', { event: 'group-call:start' })
                 }
 
+                const conversationKey = String(conversationId)
+                const existingRoom = activeGroupCallRooms.get(conversationKey)
+                if (existingRoom) {
+                    existingRoom.participants.add(String(fromUserId))
+                    socket.emit('group-call:ongoing', serializeActiveRoom(existingRoom))
+                    broadcastRoomOngoing(conversationKey)
+                    return
+                }
+
+                activeGroupCallRooms.set(conversationKey, {
+                    callId: String(callId),
+                    conversationId: conversationKey,
+                    groupName: metadata?.groupName || 'Nhóm chat',
+                    callType: metadata?.callType || 'video',
+                    startedAt: Date.now(),
+                    participants: new Set([String(fromUserId)]),
+                })
+
                 socket.to(`conv:${String(conversationId)}`).emit('group-call:incoming', {
                     callId: String(callId),
                     conversationId: String(conversationId),
@@ -198,6 +232,8 @@ export function initSockets(io) {
                     metadata,
                     timestamp: Date.now()
                 })
+
+                broadcastRoomOngoing(conversationKey)
             } catch (e) {
                 console.error('group-call:start error', e)
                 emitCallError('Lỗi hệ thống khi bắt đầu call nhóm', { event: 'group-call:start' })
@@ -296,18 +332,33 @@ export function initSockets(io) {
             const { conversationId, callId } = payload
 
             if (!fromUserId) return emitCallError('Bạn chưa join socket với userId', { event: 'group-call:join' })
-            if (!conversationId || !callId) return emitCallError('Thiếu conversationId hoặc callId', { event: 'group-call:join' })
+            if (!conversationId) return emitCallError('Thiếu conversationId', { event: 'group-call:join' })
 
             try {
                 const membership = await getConversationMembership(conversationId, fromUserId)
                 if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:join' })
 
+                const conversationKey = String(conversationId)
+                const room = activeGroupCallRooms.get(conversationKey)
+                if (!room) {
+                    return emitCallError('Không có cuộc gọi nhóm nào đang diễn ra', { event: 'group-call:join' })
+                }
+
+                if (callId && String(callId) !== String(room.callId)) {
+                    return emitCallError('callId không khớp với cuộc gọi đang diễn ra', { event: 'group-call:join' })
+                }
+
+                room.participants.add(String(fromUserId))
+
                 socket.to(`conv:${String(conversationId)}`).emit('group-call:user-joined', {
-                    callId: String(callId),
+                    callId: String(room.callId),
                     conversationId: String(conversationId),
                     userId: fromUserId,
                     timestamp: Date.now()
                 })
+
+                socket.emit('group-call:ongoing', serializeActiveRoom(room))
+                broadcastRoomOngoing(conversationKey)
             } catch (e) {
                 console.error('group-call:join error', e)
                 emitCallError('Lỗi hệ thống khi join call nhóm', { event: 'group-call:join' })
@@ -325,13 +376,30 @@ export function initSockets(io) {
                 const membership = await getConversationMembership(conversationId, fromUserId)
                 if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:leave' })
 
+                const conversationKey = String(conversationId)
+                const room = activeGroupCallRooms.get(conversationKey)
+                if (room) {
+                    room.participants.delete(String(fromUserId))
+                }
+
                 socket.to(`conv:${String(conversationId)}`).emit('group-call:user-left', {
-                    callId: String(callId),
+                    callId: String(room?.callId || callId),
                     conversationId: String(conversationId),
                     userId: fromUserId,
                     reason,
                     timestamp: Date.now()
                 })
+
+                if (room && room.participants.size === 0) {
+                    activeGroupCallRooms.delete(conversationKey)
+                    io.to(`conv:${String(conversationId)}`).emit('group-call:room-closed', {
+                        conversationId: String(conversationId),
+                        callId: String(room.callId),
+                        timestamp: Date.now(),
+                    })
+                } else if (room) {
+                    broadcastRoomOngoing(conversationKey)
+                }
             } catch (e) {
                 console.error('group-call:leave error', e)
                 emitCallError('Lỗi hệ thống khi rời call nhóm', { event: 'group-call:leave' })
@@ -349,12 +417,24 @@ export function initSockets(io) {
                 const membership = await getConversationMembership(conversationId, fromUserId)
                 if (!membership.ok) return emitCallError(membership.message, { event: 'group-call:end' })
 
+                const conversationKey = String(conversationId)
+                const room = activeGroupCallRooms.get(conversationKey)
+                if (room) {
+                    activeGroupCallRooms.delete(conversationKey)
+                }
+
                 io.to(`conv:${String(conversationId)}`).emit('group-call:ended', {
                     callId: String(callId),
                     conversationId: String(conversationId),
                     fromUserId,
                     reason,
                     timestamp: Date.now()
+                })
+
+                io.to(`conv:${String(conversationId)}`).emit('group-call:room-closed', {
+                    conversationId: String(conversationId),
+                    callId: String(room?.callId || callId),
+                    timestamp: Date.now(),
                 })
             } catch (e) {
                 console.error('group-call:end error', e)
