@@ -9,12 +9,34 @@ import { getUserByToken } from '../libs/verifyToken.js';
 export const AI_BOT_ID = new mongoose.Types.ObjectId('000000000000000000000001');
 const AI_BOT_NAME = 'Zting AI Chatbot';
 const AI_BOT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/120px-Google_Gemini_logo.svg.png';
+const ALLOWED_KEYWORDS = [
+    "học", "bài tập", "ôn tập", "kiến thức", "code", "lập trình", "backend", "frontend", "ai", "database", "kỹ năng",
+    "sức khỏe", "ăn uống", "dinh dưỡng", "tập luyện",
+    "thể thao", "bóng đá", "gym", "chạy bộ"
+];
+function isAllowedTopic(message) {
+    const msg = message.toLowerCase();
 
-const SYSTEM_INSTRUCTION =
-    "Bạn là một trợ lý AI hữu ích được tích hợp vào một ứng dụng trò chuyện." +
-    'Bạn chuyên hỗ trợ học tập và đưa ra lời khuyên tích cực cho cuộc sống hàng ngày. ' +
-    'Nếu người dùng gửi hình ảnh hoặc tệp, hãy phân tích và phản hồi dựa trên nội dung đó.' +
-    "Nếu người dùng hỏi về bất kỳ điều gì nằm ngoài phạm vi đó, hãy lịch sự từ chối và giải thích về giới hạn này.";
+    return ALLOWED_KEYWORDS.some(keyword => msg.includes(keyword));
+}
+function rejectMessage() {
+    return "Xin lỗi, tôi chỉ hỗ trợ các chủ đề: học tập, công nghệ, kỹ năng, sức khỏe và thể thao.";
+}
+const SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý AI trong ứng dụng chat.
+Bạn CHỈ được phép hỗ trợ các lĩnh vực:
+- Học tập
+- Công nghệ
+- Kỹ năng cá nhân
+- Sức khỏe
+- Thể thao
+Quy tắc:
+1. Nếu câu hỏi thuộc các lĩnh vực trên → trả lời rõ ràng, hữu ích.
+2. Nếu KHÔNG thuộc → từ chối lịch sự:
+   "Xin lỗi, tôi chỉ hỗ trợ về học tập, công nghệ, kỹ năng, sức khỏe và thể thao."
+3. Nếu người dùng gửi hình ảnh/file:
+   → chỉ phân tích nếu nội dung liên quan đến các lĩnh vực trên.
+`;
 
 const MAX_HISTORY = 20;
 
@@ -89,7 +111,7 @@ export const getAIMessages = async (req, res) => {
         let user;
         try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
 
-        const { conversationId, limit = 50, before } = req.query;
+        const { conversationId, limit = 20, before } = req.query;
         if (!conversationId) return res.status(400).json({ message: 'conversationId required' });
 
         // Verify ownership
@@ -144,7 +166,22 @@ export const handleAIMessage = async (socket, { token, content, file } = {}) => 
         const ext = (file.mimeType || 'application/octet-stream').split('/')[1] || 'bin';
         fileUrl = await uploadFile({ buffer, mimetype: file.mimeType, originalname: `upload.${ext}` });
     }
-
+    // FILTER KEYWORD 
+    if (!content || !isAllowedTopic(content)) {
+        const rejectText = rejectMessage();
+        socket.emit('ai_chunk', { text: rejectText });
+        const aiMessage = await Message.create({
+            conversationId: conv._id,
+            senderId: AI_BOT_ID,
+            content: rejectText,
+        });
+        const aiMsgEnriched = {
+            ...aiMessage.toObject(),
+            senderId: { _id: AI_BOT_ID, name: AI_BOT_NAME, avatarUrl: AI_BOT_AVATAR },
+        };
+        socket.emit('ai_done', { message: aiMsgEnriched });
+        return;
+    }
     // Lưu tin nhắn người dùng vào DB
     const userMessage = await Message.create({
         conversationId: conv._id,
