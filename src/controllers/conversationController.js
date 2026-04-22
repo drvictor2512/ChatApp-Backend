@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Friend from '../models/Friend.js';
 import { getIo } from '../libs/socket.js';
+import { uploadFile } from '../util/fileService.js';
 import crypto from 'crypto';
 
 const getTokenFromHeader = (req) => {
@@ -203,12 +204,14 @@ export const getConversations = async (req, res) => {
             const convObj = conv.toObject();
             const groupData = convObj.group || {};
             const groupName = convObj.type === 'GROUP' ? (groupData.name || '') : '';
+            const groupAvatarUrl = convObj.type === 'GROUP' ? (groupData.avatarUrl || null) : null;
 
             return {
                 ...convObj,
                 group: convObj.type === 'GROUP'
                     ? {
                         ...groupData,
+                        avatarUrl: groupAvatarUrl,
                         ownerId: groupData.ownerId?._id || groupData.ownerId || null,
                         deputyIds: Array.isArray(groupData.deputyIds)
                             ? groupData.deputyIds.map(id => id?._id || id)
@@ -218,6 +221,8 @@ export const getConversations = async (req, res) => {
                 // Keep backward-compatible fields for clients during transition.
                 groupName,
                 name: groupName || convObj.name || null,
+                groupAvatar: groupAvatarUrl,
+                avatarUrl: convObj.type === 'GROUP' ? groupAvatarUrl : (convObj.avatarUrl || null),
                 ownerId: groupData.ownerId?._id || groupData.ownerId || null,
                 deputyIds: Array.isArray(groupData.deputyIds)
                     ? groupData.deputyIds.map(id => id?._id || id)
@@ -313,6 +318,68 @@ export const renameGroup = async (req, res) => {
         }
 
         return res.status(200).json({ message: 'Đổi tên nhóm thành công' });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ message: e.message });
+    }
+};
+
+export const updateGroupAvatar = async (req, res) => {
+    try {
+        const { conversationId } = req.body;
+        if (!conversationId) {
+            return res.status(400).json({ message: 'conversationId required' });
+        }
+
+        const token = getTokenFromHeader(req);
+        if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+        let user;
+        try {
+            user = await getUserByToken(token);
+        } catch (e) {
+            return res.status(401).json({ message: e.message });
+        }
+
+        const conv = await Conversation.findById(conversationId);
+        if (!conv || conv.type !== 'GROUP') {
+            return res.status(404).json({ message: 'Group conversation not found' });
+        }
+
+        const participant = findParticipant(conv, user._id);
+        if (!participant) return res.status(403).json({ message: 'Bạn không phải thành viên nhóm' });
+        if (!(participant.role === 'Trưởng nhóm' || participant.role === 'Phó nhóm')) {
+            return res.status(403).json({ message: 'Không đủ quyền' });
+        }
+
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ message: 'Không có file được gửi lên' });
+        }
+        if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ message: 'Chỉ cho phép file hình ảnh cho ảnh nhóm' });
+        }
+
+        const uploadedUrl = await uploadFile(file);
+        if (!conv.group) conv.group = { name: 'Nhóm' };
+        conv.group.avatarUrl = uploadedUrl;
+        await conv.save();
+
+        try {
+            await appendSystemMessageAndEmit({
+                conversation: conv,
+                senderId: user._id,
+                content: `${user.name} đã đổi ảnh nhóm`,
+            });
+        } catch (e) {
+            console.error('system message / emit failed', e);
+        }
+
+        return res.status(200).json({
+            message: 'Đổi ảnh nhóm thành công',
+            avatarUrl: uploadedUrl,
+            conversationId: String(conv._id),
+        });
     } catch (e) {
         console.error(e);
         return res.status(500).json({ message: e.message });

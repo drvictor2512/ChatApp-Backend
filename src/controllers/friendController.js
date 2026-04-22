@@ -187,6 +187,42 @@ export const declineFriendRequest = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 }
+export const revokeFriendRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const token = getTokenFromHeader(req)
+        if (!token) return res.status(401).json({ message: 'Unauthorized' })
+        let user;
+        try { user = await getUserByToken(token); } catch (e) { return res.status(401).json({ message: e.message }); }
+        const userId = user._id;
+
+        const request = await FriendRequest.findById(requestId);
+        if (!request) {
+            return res.status(404).json({ message: 'Yêu cầu kết bạn không tồn tại' });
+        }
+
+        if (request.fromUserId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Bạn không có quyền thu hồi lời mời này' });
+        }
+
+        const receiverId = request.toUserId
+        await FriendRequest.findByIdAndDelete(requestId);
+
+        try {
+            const io = getIo()
+            if (io) {
+                io.to(`user:${receiverId}`).emit('friend_request_cancelled', { requestId })
+                io.to(`user:${receiverId}`).emit('friend_request_revoked', { requestId })
+                io.to(`user:${receiverId}`).emit('friend_request_cancel', { requestId })
+            }
+        } catch (e) { }
+
+        res.status(200).json({ message: 'Đã thu hồi lời mời kết bạn', requestId });
+    } catch (error) {
+        console.error('Lỗi khi thu hồi lời mời kết bạn:', error);
+        res.status(500).json({ message: error.message });
+    }
+}
 export const getAllFriends = async (req, res) => {
     try {
         const token = getTokenFromHeader(req)

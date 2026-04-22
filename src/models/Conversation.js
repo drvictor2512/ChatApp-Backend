@@ -8,6 +8,7 @@ const participantSchema = new mongoose.Schema({
 
 const groupSchema = new mongoose.Schema({
     name: { type: String, required: true },
+    avatarUrl: { type: String, default: null },
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     deputyIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

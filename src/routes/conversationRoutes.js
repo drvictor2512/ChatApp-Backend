@@ -1,5 +1,6 @@
 import express from 'express';
-import { createConversation, getConversations, getMessages, renameGroup, addGroupMember, removeGroupMember, assignDeputy, deleteGroup, leaveGroup, markAsRead, getInviteLink, joinByInvite, transferOwnership } from '../controllers/conversationController.js';
+import upload from '../middlewares/upload.js'
+import { createConversation, getConversations, getMessages, renameGroup, updateGroupAvatar, addGroupMember, removeGroupMember, assignDeputy, deleteGroup, leaveGroup, markAsRead, getInviteLink, joinByInvite, transferOwnership } from '../controllers/conversationController.js';
 import checkGroupMember from '../middlewares/checkGroupMember.js'
 import checkGroupAdmin, { checkGroupOwner } from '../middlewares/checkGroupAdmin.js';
 
@@ -12,6 +13,7 @@ conversationRouter.get('/:conversationId/invite', getInviteLink)
 
 // group management
 conversationRouter.post('/group/rename', checkGroupAdmin, renameGroup)
+conversationRouter.post('/group/avatar', checkGroupAdmin, (req, res, next) => upload(req, res, next), updateGroupAvatar)
 conversationRouter.post('/group/add-member', checkGroupMember, addGroupMember)
 conversationRouter.post('/group/remove-member', checkGroupAdmin, removeGroupMember)
 conversationRouter.post('/group/assign-deputy', checkGroupOwner, assignDeputy)
