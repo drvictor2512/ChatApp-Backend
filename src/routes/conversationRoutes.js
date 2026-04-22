@@ -13,7 +13,7 @@ conversationRouter.get('/:conversationId/invite', getInviteLink)
 
 // group management
 conversationRouter.post('/group/rename', checkGroupAdmin, renameGroup)
-conversationRouter.post('/group/avatar', checkGroupAdmin, (req, res, next) => upload(req, res, next), updateGroupAvatar)
+conversationRouter.post('/group/avatar', (req, res, next) => upload(req, res, next), checkGroupAdmin, updateGroupAvatar)
 conversationRouter.post('/group/add-member', checkGroupMember, addGroupMember)
 conversationRouter.post('/group/remove-member', checkGroupAdmin, removeGroupMember)
 conversationRouter.post('/group/assign-deputy', checkGroupOwner, assignDeputy)
