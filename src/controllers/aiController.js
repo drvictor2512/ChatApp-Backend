@@ -10,9 +10,8 @@ export const AI_BOT_ID = new mongoose.Types.ObjectId('000000000000000000000001')
 const AI_BOT_NAME = 'Zting AI Chatbot';
 const AI_BOT_AVATAR = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Google_Gemini_logo.svg/120px-Google_Gemini_logo.svg.png';
 const ALLOWED_KEYWORDS = [
-    "học", "bài tập", "ôn tập", "kiến thức", "code", "lập trình", "backend", "frontend", "ai", "database", "kỹ năng",
-    "sức khỏe", "ăn uống", "dinh dưỡng", "tập luyện",
-    "thể thao", "bóng đá", "gym", "chạy bộ"
+    "học", "bài tập", "ôn tập", "kiến thức", "code", "lập trình", "backend", "frontend", "ai", "database",
+    "kỹ năng", "giao tiếp", "làm việc nhóm", "quản lý thời gian", "công nghệ", "phát triển", "mạng", "bảo mật"
 ];
 function isAllowedTopic(message) {
     const msg = message.toLowerCase();
@@ -20,7 +19,7 @@ function isAllowedTopic(message) {
     return ALLOWED_KEYWORDS.some(keyword => msg.includes(keyword));
 }
 function rejectMessage() {
-    return "Xin lỗi, tôi chỉ hỗ trợ các chủ đề: học tập, công nghệ, kỹ năng, sức khỏe và thể thao.";
+    return "Xin lỗi, tôi chỉ hỗ trợ các chủ đề: học tập, công nghệ, kỹ năng.";
 }
 const SYSTEM_INSTRUCTION = `
 Bạn là một trợ lý AI trong ứng dụng chat.
@@ -28,12 +27,10 @@ Bạn CHỈ được phép hỗ trợ các lĩnh vực:
 - Học tập
 - Công nghệ
 - Kỹ năng cá nhân
-- Sức khỏe
-- Thể thao
 Quy tắc:
 1. Nếu câu hỏi thuộc các lĩnh vực trên → trả lời rõ ràng, hữu ích.
 2. Nếu KHÔNG thuộc → từ chối lịch sự:
-   "Xin lỗi, tôi chỉ hỗ trợ về học tập, công nghệ, kỹ năng, sức khỏe và thể thao."
+   "Xin lỗi, tôi chỉ hỗ trợ về học tập, công nghệ, kỹ năng."
 3. Nếu người dùng gửi hình ảnh/file:
    → chỉ phân tích nếu nội dung liên quan đến các lĩnh vực trên.
 `;
@@ -166,6 +163,19 @@ export const handleAIMessage = async (socket, { token, content, file } = {}) => 
         const ext = (file.mimeType || 'application/octet-stream').split('/')[1] || 'bin';
         fileUrl = await uploadFile({ buffer, mimetype: file.mimeType, originalname: `upload.${ext}` });
     }
+    // Lưu tin nhắn người dùng vào DB
+    const userMessage = await Message.create({
+        conversationId: conv._id,
+        senderId: user._id,
+        content: content || null,
+        fileUrl: fileUrl || null,
+    });
+
+    const userMsgEnriched = {
+        ...userMessage.toObject(),
+        senderId: { _id: user._id, name: user.name, avatarUrl: user.avatarUrl },
+    };
+    socket.emit('ai_user_message', { message: userMsgEnriched });
     // FILTER KEYWORD 
     if (!content || !isAllowedTopic(content)) {
         const rejectText = rejectMessage();
@@ -182,20 +192,6 @@ export const handleAIMessage = async (socket, { token, content, file } = {}) => 
         socket.emit('ai_done', { message: aiMsgEnriched });
         return;
     }
-    // Lưu tin nhắn người dùng vào DB
-    const userMessage = await Message.create({
-        conversationId: conv._id,
-        senderId: user._id,
-        content: content || null,
-        fileUrl: fileUrl || null,
-    });
-
-    const userMsgEnriched = {
-        ...userMessage.toObject(),
-        senderId: { _id: user._id, name: user.name, avatarUrl: user.avatarUrl },
-    };
-    socket.emit('ai_user_message', { message: userMsgEnriched });
-
     // Lấy lịch sử để làm ngữ cảnh
     const history = await Message.find({ conversationId: conv._id, _id: { $ne: userMessage._id } })
         .sort({ createdAt: -1 }).limit(MAX_HISTORY).lean();
