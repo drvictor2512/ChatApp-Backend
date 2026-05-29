@@ -2,18 +2,18 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http'
 import { Server } from 'socket.io'
-import { connectDB } from './libs/db.js';
+import { connectDB } from './infrastructure/libs/db.js';
 import cors from 'cors';
-import authRouter from './routes/authRoutes.js';
-import userRouter from './routes/userRoutes.js';
-import expireHandler from './middlewares/expireHandler.js';
-import friendRouter from './routes/friendRoutes.js';
-import messageRouter from './routes/messageRoutes.js';
-import conversationRouter from './routes/conversationRoutes.js';
-import { setIo } from './libs/socket.js'
-import { initSockets } from './socket/index.js'
-import aiRouter from './routes/aiRoutes.js';
-import job from './libs/cron.js';
+import authRouter from './presentation/http/routes/authRoutes.js';
+import userRouter from './presentation/http/routes/userRoutes.js';
+import expireHandler from './presentation/http/middlewares/expireHandler.js';
+import friendRouter from './presentation/http/routes/friendRoutes.js';
+import messageRouter from './presentation/http/routes/messageRoutes.js';
+import conversationRouter from './presentation/http/routes/conversationRoutes.js';
+import { setIo } from './infrastructure/libs/socket.js'
+import { initSockets } from './presentation/socket/index.js'
+import aiRouter from './presentation/http/routes/aiRoutes.js';
+import job from './infrastructure/libs/cron.js';
 
 job.start()
 const app = express();

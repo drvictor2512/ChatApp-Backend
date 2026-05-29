@@ -1,0 +1,6 @@
+export * as userRepository from './userRepository.js'
+export * as otpRepository from './otpRepository.js'
+export * as friendRepository from './friendRepository.js'
+export * as friendRequestRepository from './friendRequestRepository.js'
+export * as messageRepository from './messageRepository.js'
+export * as conversationRepository from './conversationRepository.js'

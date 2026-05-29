@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken'
-import User from '../models/User.js'
+import User from '../../repository/mongoose/models/User.js'
 
 export async function getUserByToken(token) {
     if (!token) throw new Error('Token không tồn tại')

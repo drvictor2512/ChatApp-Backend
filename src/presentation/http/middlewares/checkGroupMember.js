@@ -1,5 +1,5 @@
-import Conversation from '../models/Conversation.js';
-import { getUserByToken } from '../libs/verifyToken.js';
+import Conversation from '../../../repository/mongoose/models/Conversation.js';
+import { getUserByToken } from '../../../infrastructure/libs/verifyToken.js';
 
 const getTokenFromHeader = (req) => {
     const authHeader = req.headers.authorization || ''

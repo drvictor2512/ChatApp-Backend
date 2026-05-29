@@ -1,0 +1,16 @@
+import * as conversationService from '../../services/conversationService.js'
+
+export const createConversation = (payload) => conversationService.createConversation(payload)
+export const getConversations = (payload) => conversationService.getConversations(payload)
+export const getMessages = (payload) => conversationService.getMessages(payload)
+export const renameGroup = (payload) => conversationService.renameGroup(payload)
+export const updateGroupAvatar = (payload) => conversationService.updateGroupAvatar(payload)
+export const addGroupMember = (payload) => conversationService.addGroupMember(payload)
+export const removeGroupMember = (payload) => conversationService.removeGroupMember(payload)
+export const assignDeputy = (payload) => conversationService.assignDeputy(payload)
+export const deleteGroup = (payload) => conversationService.deleteGroup(payload)
+export const leaveGroup = (payload) => conversationService.leaveGroup(payload)
+export const markAsRead = (payload) => conversationService.markAsRead(payload)
+export const getInviteLink = (payload) => conversationService.getInviteLink(payload)
+export const joinByInvite = (payload) => conversationService.joinByInvite(payload)
+export const transferOwnership = (payload) => conversationService.transferOwnership(payload)

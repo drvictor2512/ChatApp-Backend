@@ -1,4 +1,4 @@
-import s3 from "../libs/aws-helper.js"; // Import S3 service đã khởi tạo từ file aws-helper.js
+import s3 from "../../infrastructure/libs/aws-helper.js"; // Import S3 service đã khởi tạo từ file aws-helper.js
 
 // Hàm randomString sẽ tạo ra một chuỗi ngẫu nhiên với độ dài numberCharacter ký tự dùng để tạo tên file
 const randomString = (numberCharacter) => {
